@@ -21,8 +21,11 @@ impl <E: Unit> SumKernel<E> for CPU {
         src_grad: &mut Self::Vec,
         out_grad: &Self::Vec,
     ) -> Result<(), Self::Err> {
+        debug_assert_eq!(out_grad.len(), 1);
+        let out = out_grad[0];
+        let one = E::ONE;
         for i in 0..src.shape.num_elements() {
-            src_grad[i] = E::ONE;
+            src_grad[i] = out * one;
         }
 
         Ok(())

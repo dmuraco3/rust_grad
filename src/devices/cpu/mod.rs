@@ -47,6 +47,7 @@ impl Display for CpuError {
 
 impl HasErr for CPU {
     type Err = CpuError;
+    const Err: Self::Err = CpuError::SmallProblem;
 }
 
 impl <E: Unit> ZerosTensor<E> for CPU {

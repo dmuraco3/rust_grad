@@ -1,8 +1,8 @@
-use std::{sync::atomic::AtomicUsize, collections::{BTreeMap, BTreeSet, btree_map::Entry::Vacant as VacantEntry}};
+use std::{sync::{atomic::AtomicUsize, Arc, RwLock}, collections::{BTreeMap, BTreeSet, btree_map::Entry::{Occupied, Vacant}}};
 
 use crate::{shape::{Storage, Shape}, dtypes::Unit};
 
-use super::{Tensor, ZerosTensor};
+use super::{Tensor, ZerosTensor, HasErr};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub struct UniqueID(usize);
@@ -28,7 +28,7 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
     }
 
     pub fn try_alloc_for(&mut self, tensor_data: (&D, UniqueID, usize)) -> Result<(), D::Err> {
-        if let VacantEntry(entry) = self.gradient_by_id.entry(tensor_data.1) {
+        if let Vacant(entry) = self.gradient_by_id.entry(tensor_data.1) {
             entry.insert(tensor_data.0.try_alloc_len(tensor_data.2)?);
         }
 
@@ -36,7 +36,7 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
     }
 
     pub fn try_ones_for(&mut self, tensor_data: (&D, UniqueID, usize)) -> Result<(), D::Err> {
-        if let VacantEntry(entry) = self.gradient_by_id.entry(tensor_data.1) {
+        if let Vacant(entry) = self.gradient_by_id.entry(tensor_data.1) {
             entry.insert(tensor_data.0.try_alloc_ones(tensor_data.2)?);
         }
 
@@ -50,7 +50,22 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
     pub fn get_grad_mut(&mut self, tensor_id:&UniqueID) -> &mut D::Vec {
         self.gradient_by_id.get_mut(tensor_id).unwrap()
     }
+
+    pub fn get<S: Shape, T>(&self, tensor: &Tensor<S, E, D, T>) -> Result<Tensor<S, E, D>, D::Err> {
+        match self.gradient_by_id.get(&tensor.id) {
+            None => Err(<D as HasErr>::Err),
+            Some(entry) => Ok(Tensor {
+                id: tensor.id,
+                shape: tensor.shape,
+                data: Arc::new(RwLock::new(entry.to_owned())),
+                device: tensor.device.clone(),
+                tape: NoneTape,
+            })
+        }
+    }
+
 }
+
 
 type BackwardOp<E, D, Err> = Box<dyn FnOnce(&mut Gradients<E, D>) -> Result<(), Err>>;
 

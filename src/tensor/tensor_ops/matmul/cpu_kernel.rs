@@ -146,8 +146,6 @@ where
         let (i, j): (I,J) = lhs.shape;
         let k: K = rhs.shape.1;
 
-        println!("Doing backward pass on matmul");
-
         grads.try_alloc_for((&lhs.device, lhs.id, lhs.device.num_el(lhs.data.read().unwrap().to_owned())))?;
         grads.try_alloc_for((&rhs.device, rhs.id, rhs.device.num_el(rhs.data.read().unwrap().to_owned())))?;
         grads.try_ones_for((&out.device, out.id, out.device.num_el(out.data.read().unwrap().to_owned())))?;
@@ -167,8 +165,6 @@ where
             &mut grads.get_grad_mut(&rhs.id),
             (true, false)
         );
-
-
 
         Ok(())
 

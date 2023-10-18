@@ -1,6 +1,6 @@
 use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, process::exit};
 
-use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::{TryMatMul, MatMatKernel}, relu::TryReLU, pow::TryPow, sum::{TrySum, SumKernel}}, Watch, tape::{unique_id, NoneTape}}, shape::{Rank2, Dim, Shape}};
+use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::{TryMatMul, MatMatKernel}, relu::TryReLU, pow::TryPow, sum::{TrySum, SumKernel}}, Watch, tape::{unique_id, NoneTape, SplitTape, PutTape}, RandTensor}, shape::{Rank2, Dim, Shape, Const, Rank1}};
 
 // use rust_grad::{
 //     tensor::{
@@ -69,120 +69,44 @@ fn read_training_data() -> (Vec<[f32;784]>, Vec<f32>) {
 }
 
 
-// fn test_network() {
-//     let (images, labels) = read_training_data();
+fn test_network() {
+    let (images, labels) = read_training_data();
+    const STEPS: usize = 100;
+    const BATCHSIZE: usize = 128;
+    let device = CPU::default();
 
-//     const STEPS: usize = 100;
-//     const BATCHSIZE: usize = 128;
-
-//     let device = CPU::default();
+    let mut w1: Tensor<Rank2<512, 784>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
+    let mut w2: Tensor<Rank2<128, 512>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
+    let mut w3: Tensor<Rank2<32, 128>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
+    let mut l1: Tensor<Rank2<10, 32>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
     
-//     let mut c1: Tensor<(Const<3>, Const<3>), f32, _> = device.fill_rand_range(-1_f32..1_f32);
-//     let mut c2: Tensor<(Const<3>, Const<3>), f32, _> = device.fill_rand_range(-1_f32..1_f32);
-//     let mut l1: Tensor<(Const<10>, Const<36>), f32, _> = device.fill_rand_range(-1_f32..1_f32);
-
-//     for i in 0..STEPS {
-//         let distrubution: Tensor<(Const<BATCHSIZE>,), i32, _> = device.fill_rand_range(0..images.len() as i32);
-//         let mut x: Vec<[f32;784]> = Vec::new();
-//         let mut y: Vec<f32> = Vec::new();
-
-//         // let mut l1: Tensor<(Const<)>
-
-//         for i in distrubution.data.read().unwrap().iter() {
-//             x.push(images[*i as usize])
-//         }
-//         for i in distrubution.data.read().unwrap().iter() {
-//             y.push(labels[*i as usize])
-//         }
-
-//         // Forward pass of the network
-//         for (i, j) in x.iter().zip(y.iter()) {
-
-//             let actual: Tensor<(Const<10>, ), f32, _> = device.zeros();
-//             actual.data.write().unwrap()[*j as usize] = *j;
-
-
-//             let x: Tensor<(Const<28>, Const<28>), f32, _> = Tensor {
-//                 data: Arc::new(RwLock::new(i.clone().into())),
-//                 shape: Default::default(),
-//                 device: device.clone(),
-//                 id: unique_id(),
-//             };
+    for i in 0..STEPS {
+        let distrubution: Tensor<(Const<BATCHSIZE>,), i32, _> = device.fill_rand_range(0..images.len() as i32);
+        let mut x: Vec<[f32;784]> = Vec::new();
+        let mut y: Vec<f32> = Vec::new();
+        // let mut l1: Tensor<(Const<)>
+        for i in distrubution.data.read().unwrap().iter() {
+            x.push(images[*i as usize])
+        }
+        for i in distrubution.data.read().unwrap().iter() {
+            y.push(labels[*i as usize])
+        }
+        // Forward pass of the network
+        for (i, j) in x.iter().zip(y.iter()) {
+            let actual: Tensor<(Const<10>, ), f32, _> = device.zeros();
+            actual.data.write().unwrap()[*j as usize] = *j;
             
-//             let x = x.try_conv2d_known::<26, 26>(
-//                 &c1, 2, 0, 1, 1
-//             )
-//             .unwrap();
+            let mut x: Tensor<Rank1<784>, f32, CPU> = device.zeros();
+            x.copy_from_slice(i);
 
-        
-//             let x  = x.try_maxpool2d_known::<13,13>((Const::<2>,Const::<2>), 1, PADDING::SAME)
-//             .unwrap()
-//             .try_relu()
-//             .unwrap();
-            
+            let x: Tensor<Rank1<512>, _, _, _> = w1.watch_leaky().matmul(x);
 
-//             let x = x.try_conv2d_known::<11, 11>(
-//                 &c2, 1, 0, 1, 1
-//             )
-//             .unwrap()
-//             .try_maxpool2d_known::<6, 6>((Const::<2>, Const::<2>), 2, PADDING::SAME)
-//             .unwrap()
-//             .try_relu()
-//             .unwrap();
 
-//             let x = x.try_reshape_like(&(Const::<36>,)).unwrap();
-            
-//             let x = l1
-//             .try_matmul(&x)
-//             .unwrap()
-//             .try_softmax()
-//             .unwrap();
-
-//             let loss = x.try_sparse_categorical_crossentropy(actual).unwrap();
-
-//             return
-
-//         }
-
-//     }
-// }
+            return
+        }
+    }
+}
 
 fn main() {
-    let dev = CPU::default();
-
-    let x = dev.from_array([
-        [1., 2., 3.],
-        [4., 5., 6.],
-        [7., 8., 9.]
-    ]).watched_leaky();
-
-    let w_1 = dev.from_array([
-        [1.1, 2.2, 3.3],
-        [4.4, 5.5, 6.6],
-        [7.7, 8.8, 9.9]
-    ]);
-
-
-    let w_2 = dev.from_array([
-        [0.2, 0.0, 0.0],
-        [0.2, 0.0, 0.0],
-        [0.2, 0.0, 0.0],
-    ]);
-
-    let x_id = x.id;
-
-    let mut z = x.matmul(w_1.clone());
-
-    let h = z.try_relu().unwrap();
-    let y = h.matmul(w_2);
-    let y_pow = y.try_pow(2).unwrap();
-    let l = y_pow.try_sum().unwrap();
-
-    // z.tape.operations.sort_by(|a, b| a.0.cmp(&b.0));
-
-    // for i in z.tape.operations {
-    //     i.1(&mut z.tape.gradients).unwrap();
-    // }
-
-
+    test_network();
 }

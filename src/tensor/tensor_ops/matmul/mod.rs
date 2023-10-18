@@ -26,9 +26,6 @@ pub trait MatMatKernel<E: Unit>: Storage<E> {
         rhs: &Tensor<(J,K), E, Self>,
         grads: &mut Gradients<E, Self>,
         out: &Tensor<(I, K), E, Self>
-        // lhs_grad: &mut Self::Vec,
-        // rhs_grad: &mut Self::Vec,
-        // out_grad: &Self::Vec,
     ) -> Result<(), Self::Err>;
 }
 
@@ -37,6 +34,14 @@ pub trait MatVecKernel<E: Unit>: Storage<E> {
         lhs: &Tensor<(I, J), E, Self>,
         rhs: &Tensor<(J, ), E, Self>,
     ) -> Result<Tensor<(I,), E, Self>, Self::Err>;
+
+    fn backward<I: Dim, J: Dim>(
+        &self,
+        lhs: &Tensor<(I, J), E, Self>,
+        rhs: &Tensor<(J, ), E, Self>,
+        grads: &mut Gradients<E, Self>,
+        out: &Tensor<(I,), E, Self>,
+    ) -> Result<(), Self::Err>;
 }
 
 pub trait TryMatMul<Rhs>: HasErr {
@@ -98,10 +103,35 @@ where
     
 }
 
-impl <I: Dim, J: Dim, E:Unit, D: MatVecKernel<E>> TryMatMul<Tensor<(J,), E, D>> for Tensor<(I,J), E, D> {
-    type Output = Tensor<(I,), E, D>;
+impl <I, J, E, D, T, R> TryMatMul<Tensor<(J,), E, D, R>> for Tensor<(I,J), E, D, T>
+where
+    I: Dim,
+    J: Dim,
+    E: Unit,
+    D: MatVecKernel<E>,
+    T: Tape<E, D> + Merge<R>,
+    R: Tape<E, D>
+{
+    type Output = Tensor<(I,), E, D, T>;
 
-    fn try_matmul(self, rhs: Tensor<(J,), E, D>) -> Result<Self::Output, Self::Err> {
-        D::forward(&self, &rhs)
+    fn try_matmul(self, rhs: Tensor<(J,), E, D, R>) -> Result<Self::Output, Self::Err> {
+
+        let (lhs, lhs_tape) = self.split_tape();
+        let (rhs, rhs_tape) = rhs.split_tape();
+
+        let mut tape = lhs_tape.merge(rhs_tape);
+        
+        let out = D::forward(&lhs, &rhs)?;
+
+        let out_clone = out.clone();
+
+        tape.add_backward_op(move |grads| {
+            lhs.device.backward(&lhs, &rhs, grads, &out_clone)?;
+
+            Ok(())
+        });
+
+        Ok(out.put_tape(tape))
+
     }
 }

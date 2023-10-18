@@ -12,4 +12,18 @@ impl <E: Unit> ReLUKernel<E> for CPU {
 
         Ok(())
     }
+
+    fn backward<S: Shape>(&self, out: &Tensor<S, E, Self>, src_grad: &mut Self::Vec, out_grad: &Self::Vec) -> Result<(), Self::Err> {
+        let out_data = out.data.read().unwrap();
+
+        for i in 0..out.shape.num_elements() {
+            if out_data[i] > E::ZERO {
+                src_grad[i] = out_grad[i];
+            }
+        }
+
+        Ok(())
+    }
+
+    
 }

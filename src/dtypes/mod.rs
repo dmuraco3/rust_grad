@@ -34,6 +34,8 @@ pub trait Unit:
         }
         x
     }
+
+    fn from_u32(src: u32) -> Self;
 }
 
 pub trait FloatUnit: Unit {
@@ -48,10 +50,15 @@ macro_rules! craft_unit {
         impl Unit for $rust_type {
             const ONE: Self = $one;
             const ZERO: Self = $zero;
-        
+
+            fn from_u32(src:u32) -> $rust_type {
+                src as $rust_type
+            }
         }
+
     };
 }
+
 
 craft_unit!(f32, 1.0_f32, 0.0_f32);
 craft_unit!(f64, 1.0_f64, 0.0_f64);
