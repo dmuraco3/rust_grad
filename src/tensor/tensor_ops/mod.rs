@@ -7,3 +7,4 @@ pub mod sparse_categorical_crossentropy;
 pub mod utilities;
 pub mod pow;
 pub mod sum;
+pub mod cross_entropy;

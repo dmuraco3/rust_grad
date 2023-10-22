@@ -1,6 +1,6 @@
 use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, process::exit};
 
-use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::{TryMatMul, MatMatKernel}, relu::TryReLU, pow::TryPow, sum::{TrySum, SumKernel}}, Watch, tape::{unique_id, NoneTape, SplitTape, PutTape}, RandTensor}, shape::{Rank2, Dim, Shape, Const, Rank1}};
+use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::{TryMatMul, MatMatKernel}, relu::TryReLU, pow::TryPow, sum::{TrySum, SumKernel}, cross_entropy::TryCrossEntropy}, Watch, tape::{unique_id, NoneTape, SplitTape, PutTape}, RandTensor}, shape::{Rank2, Dim, Shape, Const, Rank1}};
 
 // use rust_grad::{
 //     tensor::{
@@ -99,8 +99,15 @@ fn test_network() {
             let mut x: Tensor<Rank1<784>, f32, CPU> = device.zeros();
             x.copy_from_slice(i);
 
-            let x: Tensor<Rank1<512>, _, _, _> = w1.watch_leaky().matmul(x);
+            let (x, x_tape) = w1.watch_leaky().matmul(x).split_tape();
 
+            let (x, x_tape) = w2.put_tape(x_tape).matmul(x).split_tape();
+
+            let (x, x_tape) = w3.put_tape(x_tape).matmul(x).split_tape();
+
+            let x = l1.put_tape(x_tape).matmul(x);
+
+            let x = x.try_cross_entropy(actual).unwrap();
 
             return
         }
@@ -108,5 +115,30 @@ fn test_network() {
 }
 
 fn main() {
-    test_network();
+    // test_network();
+
+    let dev = CPU::default();
+    let x: Tensor<(Const<3>, Const<3>), f32, CPU> = dev.from_2d_array([
+        [1., 2., 3.],
+        [4., 5., 6.],
+        [7., 8., 9.],
+    ]);
+    let y: Tensor<(Const<3>, ), f32, CPU> = dev.from_array([1., 2., 3.]);
+
+    let labels = dev.from_array([0.2, 0.2, 0.6]);
+
+
+    let (z, z_tape) = x.watch_leaky().matmul(y.clone()).split_tape();
+    
+    z.data.write().unwrap().iter_mut().for_each(|z| {
+        *z *= 0.1;
+    });
+
+    let mut a = z.clone().put_tape(z_tape).try_cross_entropy(labels.clone()).unwrap();
+    
+    let op = a.tape.operations.pop().unwrap();
+    op.1(&mut a.tape.gradients).unwrap();
+
+    println!("da_dz: {:?}", a.tape.gradients.get_grad_ref(&z.id));
+
 }

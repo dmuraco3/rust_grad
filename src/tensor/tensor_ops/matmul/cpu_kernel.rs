@@ -2,7 +2,7 @@ use std::{sync::{Arc, RwLockReadGuard, RwLock}, borrow::BorrowMut, ops::Index};
 
 use std::collections::btree_map::Entry::Vacant;
 
-use crate::{dtypes::Unit, devices::cpu::CPU, shape::{Dim, Storage}, tensor::{ZerosTensor, Tensor, tape::Gradients}};
+use crate::{dtypes::Unit, devices::cpu::CPU, shape::{Dim, Storage, Shape}, tensor::{ZerosTensor, Tensor, tape::Gradients}};
 
 use super::{MatMatKernel, MatVecKernel};
 
@@ -25,7 +25,7 @@ pub trait MatMatImpl<E: Unit> {
     );
 }
 
-pub trait MatVecImpl<E> {
+pub trait MatVecImpl<E: Unit> {
     fn matmul<I: Dim, J: Dim>(
         dims: (I,J),
         lhs_data: RwLockReadGuard<Vec<E>>,
@@ -186,4 +186,56 @@ where
 
         Ok(output)
     }
+
+    fn backward<I: Dim, J: Dim>(
+        &self,
+        lhs: &Tensor<(I, J), E, Self>,
+        rhs: &Tensor<(J, ), E, Self>,
+        grads: &mut Gradients<E, Self>,
+        out: &Tensor<(I,), E, Self>,
+    ) -> Result<(), Self::Err> {
+        let (i,j) = lhs.shape;
+        
+        grads.try_alloc_for((&lhs.device, lhs.id.clone(), lhs.shape.num_elements()))?;
+        grads.try_alloc_for((&rhs.device, rhs.id.clone(), rhs.shape.num_elements()))?;
+        grads.try_ones_for((&out.device, out.id.clone(), out.shape.num_elements()))?;
+
+        let lhs_data = lhs.data.read().unwrap();
+        let rhs_data = rhs.data.read().unwrap();
+
+        let out_grad = grads.get_grad_ref(&out.id).to_vec();
+        
+        // dOut w.r.t. dLhs = (1->I).T * rhs
+
+        
+        // derive lhs
+        let lhs_grad = grads.get_grad_mut(&lhs.id);
+
+        for i_i in 0..i.size() {
+            for i_j in 0..j.size() {
+                let a = rhs_data[i_j];
+                let b = out_grad[i_i];
+                lhs_grad[i_i * j.size() + i_j] += a * b;
+            }
+        }
+
+        
+
+        // derive rhs
+        let rhs_grad = grads.get_grad_mut(&rhs.id);
+        
+        for i_i in 0..i.size() {
+            for i_j in 0..j.size() {
+                let i_a = i_i * j.size() + i_j;
+                let a = lhs_data[i_a];
+                let b = out_grad[i_i];
+                rhs_grad[i_j] += a * b;
+            }
+        }
+
+
+        Ok(())
+    }
+
+    
 }

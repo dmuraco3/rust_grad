@@ -1,5 +1,5 @@
 use core::num;
-use std::{fmt::{Debug, Display}, ops::{Add, AddAssign, Sub, Mul, Div}, process::Output};
+use std::{fmt::{Debug, Display}, ops::{Add, AddAssign, Sub, Mul, Div, Neg, MulAssign}};
 
 pub trait Unit: 
 'static
@@ -11,9 +11,11 @@ pub trait Unit:
 + AddAssign<Self>
 + Sub<Output = Self>
 + Mul<Output = Self>
++ MulAssign<Self>
 + Div<Output = Self>
 + PartialOrd<Self>
 + PartialEq<Self>
++ Neg<Output = Self>
 + Display
 {
     const ONE: Self;
@@ -41,7 +43,9 @@ pub trait Unit:
 pub trait FloatUnit: Unit {
     fn exp(self) -> Self;
 
-    fn log(self) -> Self;
+    fn ln(self) -> Self;
+
+    fn log_10(self) -> Self;
 }
 
 macro_rules! craft_unit {
@@ -68,8 +72,12 @@ impl FloatUnit for f32 {
     fn exp(self) -> Self {
         self.exp()
     }
+
+    fn ln(self) -> Self {
+        self.ln()
+    }
     
-    fn log(self) -> Self {
+    fn log_10(self) -> Self {
         self.log10()
     }
 }
@@ -79,7 +87,12 @@ impl FloatUnit for f64 {
         self.exp()
     }
 
-    fn log(self) -> Self {
+    fn ln(self) -> Self {
+        self.ln()
+    }
+
+    fn log_10(self) -> Self {
         self.log10()
     }
+
 }

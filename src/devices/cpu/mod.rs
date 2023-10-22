@@ -3,7 +3,7 @@ use std::{fmt::{Debug, Display, format}, sync::{Arc, RwLock}, ops::Range};
 use rand::{Rng, distributions::{Standard, uniform::SampleUniform}, prelude::Distribution};
 
 use crate::{
-    shape::{Shape, Storage, HasShape, Rank2, Dim, Const},
+    shape::{Shape, Storage, HasShape, Rank2, Dim, Const, Rank1},
     tensor::{ZerosTensor, Tensor, HasErr, RandTensor, tape::{unique_id, OwnedTape, Tape, NoneTape}},
     dtypes::Unit
 };
@@ -160,9 +160,10 @@ impl <E: Unit> Display for Tensor<(), E, CPU> {
     }
 }
 
+
 #[allow(dead_code)]
 impl CPU {
-    pub fn try_from_array<const I: usize, const J: usize, E: Unit>(&self, src: [[E;I];J]) -> Result<Tensor<Rank2<I, J>, E, Self>, CpuError> {
+    pub fn try_from_2d_array<const I: usize, const J: usize, E: Unit>(&self, src: [[E;I];J]) -> Result<Tensor<Rank2<I, J>, E, Self>, CpuError> {
 
         let mut out_data = vec![E::ZERO;I*J];
 
@@ -182,7 +183,30 @@ impl CPU {
         })
     }
 
-    pub fn from_array<const I: usize, const J: usize, E: Unit>(&self, src: [[E;I];J]) -> Tensor<Rank2<I, J>, E, Self> {
+    pub fn try_from_array<const I: usize, E: Unit>(&self, src: [E;I]) -> Result<Tensor<Rank1<I>, E, Self>, CpuError> {
+        let mut out_data = vec![E::ZERO;I];
+
+        for i_i in 0..I {
+            out_data[i_i] = src[i_i];
+        }
+
+        let out_data = Arc::new(RwLock::new(out_data));
+        
+        Ok(Tensor {
+            id: unique_id(),
+            shape: (Const::<I>,),
+            data: out_data,
+            device: self.clone(),
+            tape: NoneTape,
+        })
+    }
+
+    pub fn from_2d_array<const I: usize, const J: usize, E: Unit>(&self, src: [[E;I];J]) -> Tensor<Rank2<I, J>, E, Self> {
+        Self::try_from_2d_array(&self, src).unwrap()
+    }
+
+
+    pub fn from_array<const I: usize, E: Unit>(&self, src: [E;I]) -> Tensor<Rank1<I>, E, Self> {
         Self::try_from_array(&self, src).unwrap()
     }
 
