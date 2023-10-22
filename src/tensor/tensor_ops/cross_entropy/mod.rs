@@ -74,3 +74,44 @@ where
         Ok(out.put_tape(tape))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{devices::cpu::CPU, tensor::{Tensor, Watch}, shape::Rank1};
+
+    use super::TryCrossEntropy;
+
+    #[test]
+    fn test_cross_entropy_forward() {
+        let dev = CPU::default();
+
+        let src: Tensor<Rank1<5>, f32, _> = dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
+        let labels: Tensor<Rank1<5>, f32, _> = dev.from_array([1.0, 0.0, 0.0, 0.0, 0.0]);
+
+        let cross_entropy = src.try_cross_entropy(labels).unwrap();
+        
+        assert_eq!(cross_entropy.data.read().unwrap()[0], 1.6054815);
+    }
+
+    #[test]
+    fn test_cross_entropy_backward() {
+        let dev = CPU::default();
+
+        let src: Tensor<Rank1<5>, f32, _> = dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
+        let labels: Tensor<Rank1<5>, f32, _> = dev.from_array([1.0, 0.0, 0.0, 0.0, 0.0]);
+
+        let mut cross_entropy = src.watch_leaky().try_cross_entropy(labels).unwrap();
+
+        let op = cross_entropy.tape.operations.pop().unwrap();
+        op.1(&mut cross_entropy.tape.gradients).unwrap();
+
+        let src_grad = cross_entropy.tape.gradients.get(&src).unwrap();
+
+        let actual_grad: Tensor<Rank1<5>, f32, CPU> = dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.14334951]);
+
+        assert_eq!(src_grad, actual_grad);
+
+        
+
+    }
+}

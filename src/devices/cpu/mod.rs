@@ -18,7 +18,7 @@ impl Default for CPU {
 }
 
 impl <E: Unit> Storage<E> for CPU {
-    type Vec=Vec<E>;
+    type Vec = Vec<E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err> {
         Ok(vec![E::ZERO;len])

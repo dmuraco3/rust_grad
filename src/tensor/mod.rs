@@ -3,7 +3,7 @@ pub mod tape;
 
 use std::{
     sync::{RwLock, Arc},
-    fmt::{Debug, Display}, ops::{IndexMut, Range}
+    fmt::{Debug, Display}, ops::{IndexMut, Range}, simd::SimdCast
 };
 
 use rand::{distributions::Standard, prelude::Distribution};
@@ -13,13 +13,59 @@ use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1}, dtypes:
 use self::tape::{UniqueID, Tape, NoneTape, OwnedTape, PutTape};
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Tensor<SHAPE: Shape, E: Unit, D: Storage<E>, T = NoneTape> {
     pub id: UniqueID,
     pub shape: SHAPE,
     pub data: Arc<RwLock<D::Vec>>,
     pub device: D,
     pub tape: T,
+}
+
+impl <S, E, D, T> Tensor<S, E, D, T>
+where
+    S: Shape,
+    E: Unit,
+    D: Storage<E>, 
+    T: Tape<E, D>
+{
+    pub fn allclose(&self, rhs: &Self, rtol: Option<E>, atol: Option<E>) -> bool {
+        let rtol = rtol.unwrap_or(1e-05);
+        let atol = atol.unwrap_or(1e-08);
+
+        let lhs_data = self.data.read().unwrap().to_owned();
+        let rhs_data = self.data.read().unwrap().to_owned();
+
+        for (lhs, rhs) in lhs_data.into_iter().zip(rhs_data.into_iter()) {
+            let abs: E = (lhs-rhs).abs();
+            if abs <= (atol + rtol * rhs.abs()) {
+                return false
+            }
+        };
+        return true
+    }
+}
+
+impl <S, E, D, T> PartialEq for Tensor<S, E, D, T>
+where
+    S: Shape,
+    E: Unit,
+    D: Storage<E>,
+    T: Tape<E, D>,
+{
+    fn eq(&self, other: &Self) -> bool {
+        let lhs_data = self.data.read().unwrap().to_owned();
+        let rhs_data = other.data.read().unwrap().to_owned();
+
+
+        for (lhs, rhs) in lhs_data.into_iter().zip(rhs_data.into_iter()) {
+            if lhs != rhs {
+                return false
+            }
+        }
+
+        return true
+    }
 }
 
 

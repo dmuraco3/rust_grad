@@ -37,15 +37,18 @@ pub trait Unit:
         x
     }
 
+    fn abs(self) -> Self;
+
     fn from_u32(src: u32) -> Self;
 }
 
-pub trait FloatUnit: Unit {
+pub trait FloatUnit: Unit + From<f32> {
     fn exp(self) -> Self;
 
     fn ln(self) -> Self;
 
     fn log_10(self) -> Self;
+
 }
 
 macro_rules! craft_unit {
@@ -57,6 +60,10 @@ macro_rules! craft_unit {
 
             fn from_u32(src:u32) -> $rust_type {
                 src as $rust_type
+            }
+
+            fn abs(self) -> Self {
+                self.abs()
             }
         }
 

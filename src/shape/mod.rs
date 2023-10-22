@@ -112,7 +112,7 @@ impl <X: ConstDim, Y: ConstDim, Z: ConstDim> ConstShape for (X, Y, Z) {
 }
 
 pub trait Storage<E>: 'static + std::fmt::Debug + Default + Clone + HasErr {
-    type Vec: 'static + Debug + Clone + IndexMut<usize, Output = E>;
+    type Vec: 'static + Debug + Clone + IndexMut<usize, Output = E> + IntoIterator<Item = E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err>;
 

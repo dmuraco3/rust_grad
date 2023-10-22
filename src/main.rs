@@ -118,27 +118,20 @@ fn main() {
     // test_network();
 
     let dev = CPU::default();
-    let x: Tensor<(Const<3>, Const<3>), f32, CPU> = dev.from_2d_array([
-        [1., 2., 3.],
-        [4., 5., 6.],
-        [7., 8., 9.],
-    ]);
-    let y: Tensor<(Const<3>, ), f32, CPU> = dev.from_array([1., 2., 3.]);
-
-    let labels = dev.from_array([0.2, 0.2, 0.6]);
-
-
-    let (z, z_tape) = x.watch_leaky().matmul(y.clone()).split_tape();
     
-    z.data.write().unwrap().iter_mut().for_each(|z| {
-        *z *= 0.1;
-    });
+    let src: Tensor<Rank1<5>, f32, _> = dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
+    let labels: Tensor<Rank1<5>, f32, _> = dev.from_array([1.0, 0.0, 0.0, 0.0, 0.0]);
 
-    let mut a = z.clone().put_tape(z_tape).try_cross_entropy(labels.clone()).unwrap();
+    let mut cross_entropy = src.watch_leaky().try_cross_entropy(labels).unwrap();
+
+    let op = cross_entropy.tape.operations.pop().unwrap();
+    op.1(&mut cross_entropy.tape.gradients).unwrap();
+
+    let src_grad = cross_entropy.tape.gradients.get(&src).unwrap();
+    let actual_grad: Tensor<Rank1<5>, f32, CPU> = dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.123]);
+
+    println!("src_grad    : {:?}", src_grad.data.read().unwrap());
+    println!("actual_grad : {:?}", actual_grad.data.read().unwrap());
+    println!("eq: {}", src_grad == actual_grad);
     
-    let op = a.tape.operations.pop().unwrap();
-    op.1(&mut a.tape.gradients).unwrap();
-
-    println!("da_dz: {:?}", a.tape.gradients.get_grad_ref(&z.id));
-
 }
