@@ -42,7 +42,9 @@ pub trait Unit:
     fn from_u32(src: u32) -> Self;
 }
 
-pub trait FloatUnit: Unit + From<f32> {
+pub trait FloatUnit: Unit {
+    const EPSILON: Self;
+
     fn exp(self) -> Self;
 
     fn ln(self) -> Self;
@@ -76,6 +78,7 @@ craft_unit!(f64, 1.0_f64, 0.0_f64);
 craft_unit!(i32, 1_i32, 0_i32);
 
 impl FloatUnit for f32 {
+    const EPSILON: Self = 1e-04;
     fn exp(self) -> Self {
         self.exp()
     }
@@ -90,6 +93,7 @@ impl FloatUnit for f32 {
 }
 
 impl FloatUnit for f64 {
+    const EPSILON: Self = 1e-04;
     fn exp(self) -> Self {
         self.exp()
     }

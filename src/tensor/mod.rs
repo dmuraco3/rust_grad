@@ -3,12 +3,12 @@ pub mod tape;
 
 use std::{
     sync::{RwLock, Arc},
-    fmt::{Debug, Display}, ops::{IndexMut, Range}, simd::SimdCast
+    fmt::{Debug, Display}, ops::{IndexMut, Range}
 };
 
 use rand::{distributions::Standard, prelude::Distribution};
 
-use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1}, dtypes::Unit};
+use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1}, dtypes::{Unit, FloatUnit}};
 
 use self::tape::{UniqueID, Tape, NoneTape, OwnedTape, PutTape};
 
@@ -25,20 +25,21 @@ pub struct Tensor<SHAPE: Shape, E: Unit, D: Storage<E>, T = NoneTape> {
 impl <S, E, D, T> Tensor<S, E, D, T>
 where
     S: Shape,
-    E: Unit,
+    E: FloatUnit,
     D: Storage<E>, 
     T: Tape<E, D>
 {
     pub fn allclose(&self, rhs: &Self, rtol: Option<E>, atol: Option<E>) -> bool {
-        let rtol = rtol.unwrap_or(1e-05);
-        let atol = atol.unwrap_or(1e-08);
+        let rtol = rtol.unwrap_or(E::EPSILON);
+        let atol = atol.unwrap_or(E::EPSILON*E::EPSILON);
 
         let lhs_data = self.data.read().unwrap().to_owned();
-        let rhs_data = self.data.read().unwrap().to_owned();
+        let rhs_data = rhs.data.read().unwrap().to_owned();
 
         for (lhs, rhs) in lhs_data.into_iter().zip(rhs_data.into_iter()) {
             let abs: E = (lhs-rhs).abs();
-            if abs <= (atol + rtol * rhs.abs()) {
+            println!("{} close {}", lhs, rhs);
+            if !(abs <= (atol + rtol * rhs.abs())) {
                 return false
             }
         };

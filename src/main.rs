@@ -128,10 +128,10 @@ fn main() {
     op.1(&mut cross_entropy.tape.gradients).unwrap();
 
     let src_grad = cross_entropy.tape.gradients.get(&src).unwrap();
-    let actual_grad: Tensor<Rank1<5>, f32, CPU> = dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.123]);
+    let actual_grad: Tensor<Rank1<5>, f32, CPU> = dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.14334951]);
 
     println!("src_grad    : {:?}", src_grad.data.read().unwrap());
     println!("actual_grad : {:?}", actual_grad.data.read().unwrap());
-    println!("eq: {}", src_grad == actual_grad);
+    println!("eq: {}", src_grad.allclose(&actual_grad, None, None));
     
 }

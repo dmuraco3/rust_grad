@@ -109,7 +109,7 @@ mod tests {
 
         let actual_grad: Tensor<Rank1<5>, f32, CPU> = dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.14334951]);
 
-        assert_eq!(src_grad, actual_grad);
+        assert!(src_grad.allclose(&actual_grad, None, None));
 
         
 
