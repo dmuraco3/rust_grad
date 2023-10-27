@@ -11,6 +11,7 @@ impl <E: Unit, D: Storage<E>, S: Shape> BackwardPropagate<E, D> for Tensor<S, E,
         
         end_tape.operations.sort_by(|a, b| a.0.cmp(&b.0));
 
+
         for op in end_tape.operations {
             op.1(&mut end_tape.gradients).unwrap();
         }
@@ -18,3 +19,4 @@ impl <E: Unit, D: Storage<E>, S: Shape> BackwardPropagate<E, D> for Tensor<S, E,
         end_tape.gradients
     }
 }
+

@@ -12,7 +12,6 @@ use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1}, dtypes:
 
 use self::tape::{UniqueID, Tape, NoneTape, OwnedTape, PutTape};
 
-
 #[derive(Clone, Debug)]
 pub struct Tensor<SHAPE: Shape, E: Unit, D: Storage<E>, T = NoneTape> {
     pub id: UniqueID,
@@ -20,6 +19,24 @@ pub struct Tensor<SHAPE: Shape, E: Unit, D: Storage<E>, T = NoneTape> {
     pub data: Arc<RwLock<D::Vec>>,
     pub device: D,
     pub tape: T,
+}
+
+pub trait TensorLike<E: Unit, D: Storage<E>> {
+    fn get_data_ref(&self) -> Arc<RwLock<D::Vec>>;
+    fn get_num_el(&self) -> usize;
+    fn get_id(&self) -> UniqueID;
+}
+
+impl <S: Shape,E: Unit, D:Storage<E>> TensorLike<E, D> for Tensor<S, E, D> {
+    fn get_data_ref(&self) -> Arc<RwLock<D::Vec>> {
+        self.data.clone()
+    }
+    fn get_num_el(&self) -> usize {
+        self.shape.num_elements()
+    }
+    fn get_id(&self) -> UniqueID {
+        self.id.to_owned()
+    }
 }
 
 impl <S, E, D, T> Tensor<S, E, D, T>
@@ -38,7 +55,6 @@ where
 
         for (lhs, rhs) in lhs_data.into_iter().zip(rhs_data.into_iter()) {
             let abs: E = (lhs-rhs).abs();
-            println!("{} close {}", lhs, rhs);
             if !(abs <= (atol + rtol * rhs.abs())) {
                 return false
             }

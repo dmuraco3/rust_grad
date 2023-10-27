@@ -1,6 +1,6 @@
 use std::{fmt::{Debug, Display, format}, sync::{Arc, RwLock}, ops::Range};
 
-use rand::{Rng, distributions::{Standard, uniform::SampleUniform}, prelude::Distribution};
+use rand::{Rng, distributions::{Standard, uniform::SampleUniform}, prelude::Distribution, rngs::StdRng, SeedableRng};
 
 use crate::{
     shape::{Shape, Storage, HasShape, Rank2, Dim, Const, Rank1},
@@ -97,7 +97,7 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
         let mut out_data = vec![E::ZERO;shape.num_elements()];
 
         {
-            let mut rng = rand::thread_rng();
+            let mut rng = StdRng::seed_from_u64(123);
             for el in out_data.iter_mut() {
                 let el_rand: E = rng.gen_range(range.clone());
                 *el  = el_rand;

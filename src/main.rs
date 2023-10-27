@@ -1,6 +1,6 @@
-use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, process::exit};
+use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, process::exit, time::{self, Instant}};
 
-use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::{TryMatMul, MatMatKernel}, relu::TryReLU, pow::TryPow, sum::{TrySum, SumKernel}, cross_entropy::TryCrossEntropy}, Watch, tape::{unique_id, NoneTape, SplitTape, PutTape}, RandTensor}, shape::{Rank2, Dim, Shape, Const, Rank1}};
+use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::{TryMatMul, MatMatKernel}, relu::TryReLU, pow::TryPow, sum::{TrySum, SumKernel}, cross_entropy::TryCrossEntropy, utilities::backward::BackwardPropagate, softmax::TrySoftmax}, Watch, tape::{unique_id, NoneTape, SplitTape, PutTape}, RandTensor}, shape::{Rank2, Dim, Shape, Const, Rank1}, nn::optim::ADAM};
 
 // use rust_grad::{
 //     tensor::{
@@ -75,11 +75,25 @@ fn test_network() {
     const BATCHSIZE: usize = 128;
     let device = CPU::default();
 
-    let mut w1: Tensor<Rank2<512, 784>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
-    let mut w2: Tensor<Rank2<128, 512>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
-    let mut w3: Tensor<Rank2<32, 128>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
-    let mut l1: Tensor<Rank2<10, 32>, f32, _> = device.fill_rand_range(-1_f32..1_f32);
-    
+    let mut w1: Tensor<Rank2<512, 784>, f32, _> = device.fill_rand_range(-0.3_f32..0.3_f32);
+    let mut w2: Tensor<Rank2<128, 512>, f32, _> = device.fill_rand_range(-0.3_f32..0.3_f32);
+    let mut w3: Tensor<Rank2<32, 128>, f32, _>  = device.fill_rand_range(-0.3_f32..0.3_f32);
+    let mut l1: Tensor<Rank2<10, 32>, f32, _>   = device.fill_rand_range(-0.3_f32..0.3_f32);
+
+    let mut optimizer: ADAM<f32, _> = ADAM::new(&device, &[&w1, &w2, &w3, &l1]);
+
+    let mut w1_before = w1.clone();
+    let mut w2_before = w2.clone();
+    let mut w3_before = w3.clone();
+    let mut l1_before = l1.clone();
+
+    w1_before.data = Arc::new(RwLock::new(w1.data.read().unwrap().to_owned()));
+    w2_before.data = Arc::new(RwLock::new(w2.data.read().unwrap().to_owned()));
+    w3_before.data = Arc::new(RwLock::new(w3.data.read().unwrap().to_owned()));
+    l1_before.data = Arc::new(RwLock::new(l1.data.read().unwrap().to_owned()));
+
+
+
     for i in 0..STEPS {
         let distrubution: Tensor<(Const<BATCHSIZE>,), i32, _> = device.fill_rand_range(0..images.len() as i32);
         let mut x: Vec<[f32;784]> = Vec::new();
@@ -99,24 +113,29 @@ fn test_network() {
             let mut x: Tensor<Rank1<784>, f32, CPU> = device.zeros();
             x.copy_from_slice(i);
 
-            let (x, x_tape) = w1.watch_leaky().matmul(x).split_tape();
+            let (x, x_tape) = w1.watch_leaky().matmul(x).relu().split_tape();
 
-            let (x, x_tape) = w2.put_tape(x_tape).matmul(x).split_tape();
+            let (x, x_tape) = w2.clone().put_tape(x_tape).matmul(x).relu().split_tape();
+            
+            let (x, x_tape) = w3.clone().put_tape(x_tape).matmul(x).relu().split_tape();
+            
+            let x = l1.clone().put_tape(x_tape).matmul(x).try_relu().unwrap();
+            
+            let (mut loss, loss_tape) = x.try_cross_entropy(actual).unwrap().split_tape();
 
-            let (x, x_tape) = w3.put_tape(x_tape).matmul(x).split_tape();
+            let grads = loss.clone().put_tape(loss_tape).backward();
 
-            let x = l1.put_tape(x_tape).matmul(x);
+            optimizer.step(grads);
 
-            let x = x.try_cross_entropy(actual).unwrap();
-
-            return
+            // println!("{}", w1_before.allclose(&w1, None, None));
+            println!("{:?} :_: {},{},{},{}", loss.data.read().unwrap(), w1_before.allclose(&w1, None, None),w2_before.allclose(&w2, None, None),w3_before.allclose(&w3, None, None), l1_before.allclose(&l1, None, None));
+            // println!("{:?} :_: {},{}", loss.data.read().unwrap(), w1_before.data.read().unwrap()[0], w1.data.read().unwrap()[0]);
+        
         }
     }
 }
 
-fn main() {
-    // test_network();
-
+fn test_tensor() {
     let dev = CPU::default();
     
     let src: Tensor<Rank1<5>, f32, _> = dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
@@ -133,5 +152,8 @@ fn main() {
     println!("src_grad    : {:?}", src_grad.data.read().unwrap());
     println!("actual_grad : {:?}", actual_grad.data.read().unwrap());
     println!("eq: {}", src_grad.allclose(&actual_grad, None, None));
-    
+}
+
+fn main() {
+    test_network();    
 }

@@ -40,16 +40,22 @@ pub trait Unit:
     fn abs(self) -> Self;
 
     fn from_u32(src: u32) -> Self;
+
+    fn from_usize(src: usize) -> Self;
 }
 
 pub trait FloatUnit: Unit {
     const EPSILON: Self;
 
     fn exp(self) -> Self;
-
     fn ln(self) -> Self;
-
+    
     fn log_10(self) -> Self;
+
+    fn sqrt(self) -> Self;
+
+    fn from_f32(src: f32) -> Self;
+    fn from_f64(src: f64) -> Self;
 
 }
 
@@ -61,6 +67,9 @@ macro_rules! craft_unit {
             const ZERO: Self = $zero;
 
             fn from_u32(src:u32) -> $rust_type {
+                src as $rust_type
+            }
+            fn from_usize(src: usize) -> $rust_type {
                 src as $rust_type
             }
 
@@ -82,7 +91,6 @@ impl FloatUnit for f32 {
     fn exp(self) -> Self {
         self.exp()
     }
-
     fn ln(self) -> Self {
         self.ln()
     }
@@ -90,6 +98,18 @@ impl FloatUnit for f32 {
     fn log_10(self) -> Self {
         self.log10()
     }
+
+    fn sqrt(self) -> Self {
+        self.sqrt()
+    }
+
+    fn from_f32(src: f32) -> Self {
+        return src as Self
+    }
+    fn from_f64(src: f64) -> Self {
+        return src as Self
+    }
+    
 }
 
 impl FloatUnit for f64 {
@@ -97,13 +117,23 @@ impl FloatUnit for f64 {
     fn exp(self) -> Self {
         self.exp()
     }
-
     fn ln(self) -> Self {
         self.ln()
     }
 
     fn log_10(self) -> Self {
         self.log10()
+    }
+
+    fn sqrt(self) -> Self {
+        self.sqrt()
+    }
+
+    fn from_f32(src: f32) -> Self {
+        return src as Self
+    }
+    fn from_f64(src: f64) -> Self {
+        return src as Self
     }
 
 }

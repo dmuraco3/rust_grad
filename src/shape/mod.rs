@@ -1,6 +1,6 @@
-use std::{fmt::{Debug, Display}, ops::IndexMut};
+use std::{fmt::{Debug, Display}, ops::IndexMut, sync::RwLockWriteGuard};
 
-use crate::tensor::HasErr;
+use crate::{tensor::HasErr, dtypes::Unit, devices::cpu::CPU};
 
 pub trait Dim: 'static + Copy + Clone + Debug + PartialEq {
     fn size(&self)->usize;
@@ -112,7 +112,7 @@ impl <X: ConstDim, Y: ConstDim, Z: ConstDim> ConstShape for (X, Y, Z) {
 }
 
 pub trait Storage<E>: 'static + std::fmt::Debug + Default + Clone + HasErr {
-    type Vec: 'static + Debug + Clone + IndexMut<usize, Output = E> + IntoIterator<Item = E>;
+    type Vec: 'static + Debug + Clone + IndexMut<usize, Output = E> + IntoIterator<Item = E> + TensorInnerLength<E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err>;
 
@@ -120,6 +120,24 @@ pub trait Storage<E>: 'static + std::fmt::Debug + Default + Clone + HasErr {
 
     fn num_el(&self, st: Self::Vec) -> usize;
 }
+
+pub trait TensorInnerLength<E> {
+    fn len(&self) -> usize;
+
+}
+
+impl <E: Unit> TensorInnerLength<E> for <CPU as Storage<E>>::Vec {
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+
+
+// impl <E: Unit, D: Storage<E>> TensorInnerLength<E, D> for RwLockWriteGuard<'_, <D as Storage<E>>::Vec> {
+//     fn len(&self) -> usize {
+//         self.len()
+//     }
+// }
 
 pub trait HasShape {
     type WithShape<New: Shape>: HasShape<Shape=New>;

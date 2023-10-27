@@ -16,14 +16,14 @@ pub fn unique_id() -> UniqueID {
 #[derive(Clone)]
 pub struct Gradients<E, D: Storage<E>> {
     pub gradient_by_id: BTreeMap<UniqueID, D::Vec>,
-    pub leaf_ids: Option<BTreeSet<UniqueID>>,
+    // pub leaf_ids: Option<BTreeSet<UniqueID>>,
 }
 
 impl <E: Unit, D: Storage<E>> Gradients<E, D> {
     pub fn leaky() -> Self {
         Self {
             gradient_by_id: Default::default(),
-            leaf_ids: None
+            // leaf_ids: None
         }
     }
 
@@ -32,6 +32,13 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
             entry.insert(tensor_data.0.try_alloc_len(tensor_data.2)?);
         }
 
+        Ok(())
+    }
+
+    pub fn try_alloc_raw(&mut self, device: &D, tensor_id: &UniqueID, num_ele: usize) -> Result<(), D::Err> {
+        if let Vacant(entry) = self.gradient_by_id.entry(tensor_id.to_owned()) {
+            entry.insert(device.try_alloc_len(num_ele)?);
+        }
         Ok(())
     }
 
@@ -107,12 +114,12 @@ impl <E, D: Storage<E>> Merge<OwnedTape<E, D>> for OwnedTape<E, D> {
         self.gradients
             .gradient_by_id
             .extend(other.gradients.gradient_by_id);
-        if let Some(leafs) = other.gradients.leaf_ids {
-            self.gradients
-                .leaf_ids
-                .get_or_insert_with(Default::default)
-                .extend(leafs);
-        }
+        // if let Some(leafs) = other.gradients.leaf_ids {
+        //     self.gradients
+        //         .leaf_ids
+        //         .get_or_insert_with(Default::default)
+        //         .extend(leafs);
+        // }
         self.operations.append(&mut other.operations);
         self
     }
