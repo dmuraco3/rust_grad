@@ -2,17 +2,21 @@ pub mod cpu_kernel;
 
 use std::fmt::Debug;
 
-use crate::{dtypes::{Unit, FloatUnit}, shape::{Storage, Shape, Dim}, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape, NoneTape, OwnedTape, Merge}}};
+use crate::{dtypes::Unit, shape::{Storage, Shape, Dim}, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape}, HasErr}};
 
 pub trait SoftmaxKernel<E: Unit>: Storage<E> {
     fn forward<S: Shape>(&self, src: &Tensor<S, E, Self>, out: &mut Tensor<S, E, Self>) -> Result<(), Self::Err>;
 }
 
-pub trait TrySoftmax<E: Unit> {
+pub trait TrySoftmax<E: Unit>: HasErr {
     type Error: Debug;
     type Output;
     
     fn try_softmax(self) -> Result<Self::Output, Self::Error>;
+
+    fn softmax(self) -> Self::Output {
+        self.try_softmax().unwrap()
+    }
 }
 
 // impl <S: Shape, E: FloatUnit, D: SoftmaxKernel<E>+ZerosTensor<E>, T: Tape<E, D> + Merge<T>> TrySoftmax<S,E,D, T> for Tensor<S,E,D, OwnedTape<E, D>> {

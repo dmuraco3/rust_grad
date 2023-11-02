@@ -16,6 +16,7 @@ pub trait Unit:
 + PartialOrd<Self>
 + PartialEq<Self>
 + Neg<Output = Self>
++ num_traits::Pow<u16, Output=Self>
 + Display
 {
     const ONE: Self;
@@ -29,13 +30,19 @@ pub trait Unit:
         }
     }
 
-    fn pow(self, exponent: u32) -> Self {
-        let mut x = Self::ONE;
-        for _ in 0..exponent {
-            x = x * self;
-        }
-        x
+    fn min(self, rhs: Self) -> Self {
+        if self < rhs {
+            return self
+        } else {return rhs}
     }
+
+    // fn pow(self, exponent: u32) -> Self {
+    //     let mut x = Self::ONE;
+    //     for _ in 0..exponent {
+    //         x = x * self;
+    //     }
+    //     x
+    // }
 
     fn abs(self) -> Self;
 

@@ -34,9 +34,12 @@ impl <E: Unit + FloatUnit> CrossEntropyKernel<E> for CPU {
         let out_grad = grads.get_grad_ref(&out_id).to_owned();
         let src_grad = grads.get_grad_mut(&src_id);
 
-        src_grad.iter_mut().zip(src_data.iter().zip(labels_data.iter())).for_each(|(grad, (src_ele, label))| {
-            *grad = *src_ele - *label
-        });
+        for i in 0..src_grad.len() {
+            src_grad[i] = src_data[i] - labels_data[i];
+        }
+        // src_grad.iter_mut().zip(src_data.iter().zip(labels_data.iter())).for_each(|(grad, (src_ele, label))| {
+        //     *grad = *src_ele - *label
+        // });
 
         Ok(())
     }

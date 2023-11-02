@@ -106,9 +106,29 @@ impl MatVecImpl<f32> for CPU {
                 let b = rhs_data[i_j];
                 out_data[i_i] += a * b;
             }
+            // println!("{:?}", out_data);
         }
     }
 }
+impl MatVecImpl<f64> for CPU {
+    fn matmul<I: Dim, J: Dim>(
+        dims: (I,J),
+        lhs_data: RwLockReadGuard<Vec<f64>>,
+        rhs_data: RwLockReadGuard<Vec<f64>>,
+        out_data: &mut Vec<f64>
+    ) {
+        let (i, j) = dims;
+        for i_i in 0..i.size() {
+            for i_j in 0..j.size() {
+                let a = lhs_data[i_i * j.size() + i_j];
+                let b = rhs_data[i_j];
+                out_data[i_i] += a * b;
+            }
+            // println!("{:?}", out_data);
+        }
+    }
+}
+
 
 impl<E: Unit> MatMatKernel<E> for CPU
 where
@@ -204,7 +224,7 @@ where
         let rhs_data = rhs.data.read().unwrap();
 
         let out_grad = grads.get_grad_ref(&out.id).to_vec();
-        
+
         // dOut w.r.t. dLhs = (1->I).T * rhs
 
         

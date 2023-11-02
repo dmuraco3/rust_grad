@@ -12,7 +12,7 @@ impl <E: Unit> PowKernel<E> for CPU {
         let mut out_inner = out.data.write().unwrap();
 
         for i in 0..src_inner.len() {
-            out_inner[i] = src_inner[i].pow(exponent)
+            out_inner[i] = src_inner[i].pow(exponent as u16)
         }
 
         Ok(())

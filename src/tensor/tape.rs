@@ -5,7 +5,7 @@ use crate::{shape::{Storage, Shape}, dtypes::Unit};
 use super::{Tensor, ZerosTensor, HasErr};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
-pub struct UniqueID(usize);
+pub struct UniqueID(pub usize);
 pub fn unique_id() -> UniqueID {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -82,6 +82,12 @@ pub struct NoneTape;
 pub struct OwnedTape<E, D: Storage<E>> {
     pub operations: Vec<(UniqueID, BackwardOp<E, D, D::Err>)>,
     pub gradients: Gradients<E, D>,
+}
+
+impl <E, D: Storage<E>> OwnedTape<E, D> {
+    pub fn sort_ops_backprop(&mut self) {
+        self.operations.sort_by(|a, b| b.0.cmp(&a.0));
+    }
 }
 
 impl <E: Unit, D: Storage<E>> Default for OwnedTape<E, D> {

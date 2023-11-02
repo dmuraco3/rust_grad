@@ -8,3 +8,4 @@ pub mod utilities;
 pub mod pow;
 pub mod sum;
 pub mod cross_entropy;
+pub mod add;

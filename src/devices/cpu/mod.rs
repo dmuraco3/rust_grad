@@ -1,6 +1,6 @@
 use std::{fmt::{Debug, Display, format}, sync::{Arc, RwLock}, ops::Range};
 
-use rand::{Rng, distributions::{Standard, uniform::SampleUniform}, prelude::Distribution, rngs::StdRng, SeedableRng};
+use rand::{Rng, distributions::{Standard, uniform::SampleUniform, Uniform}, prelude::Distribution, rngs::StdRng, SeedableRng};
 
 use crate::{
     shape::{Shape, Storage, HasShape, Rank2, Dim, Const, Rank1},
@@ -96,10 +96,15 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
         let shape = *src.shape();
         let mut out_data = vec![E::ZERO;shape.num_elements()];
 
+        let id = unique_id();
+
         {
-            let mut rng = StdRng::seed_from_u64(123);
+            let between = Uniform::from(range);
+            // let mut rng = rand::thread_rng();
+            let mut rng = StdRng::seed_from_u64(id.0 as u64);
+
             for el in out_data.iter_mut() {
-                let el_rand: E = rng.gen_range(range.clone());
+                let el_rand: E = between.sample(&mut rng);
                 *el  = el_rand;
             }
         }
@@ -107,9 +112,9 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
         let out_data = Arc::new(RwLock::new(out_data));
         Ok(Tensor {
             shape,
+            id,
             data: out_data,
             device: Self::default(),
-            id: unique_id(),
             tape: NoneTape
         })
     }

@@ -135,3 +135,73 @@ where
 
     }
 }
+
+impl <I, J, E, D, T, R> TryMatMul<Tensor<(I,J), E, D, R>> for Tensor<(J,), E, D, T>
+where
+    I: Dim,
+    J: Dim,
+    E: Unit,
+    D: MatVecKernel<E>,
+    T: Tape<E, D> + Merge<R>,
+    R: Tape<E, D>
+{
+    type Output = Tensor<(I,), E, D, T>;
+
+    fn try_matmul(self, rhs: Tensor<(I, J), E, D, R>) -> Result<Self::Output, Self::Err> {
+
+        let (lhs, lhs_tape) = self.split_tape();
+        let (rhs, rhs_tape) = rhs.split_tape();
+
+        let mut tape = lhs_tape.merge(rhs_tape);
+        
+        let out = D::forward(&rhs, &lhs)?;
+
+        let out_clone = out.clone();
+
+        tape.add_backward_op(move |grads| {
+            lhs.device.backward(&rhs, &lhs, grads, &out_clone)?;
+
+            Ok(())
+        });
+
+        Ok(out.put_tape(tape))
+
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{devices::cpu::CPU, tensor::{Tensor, Watch, tensor_ops::{softmax::TrySoftmax, utilities::backward::BackwardPropagate}}, shape::Const};
+
+    use super::TryMatMul;
+
+    #[test]
+    fn test_mat_vec_mat() {
+        let dev = CPU::default();
+
+        let x: Tensor<(Const<5>,), f32, CPU> = dev.from_array([0.1, 0.2, 0.3, 0.4, 0.5]);
+
+        let y: Tensor<(Const<5>, Const<5>), f32, CPU> = dev.from_2d_array([
+            [0.1 , 0.2 , 0.3 , 0.4 , 0.5 ],
+            [0.11, 0.21, 0.31, 0.41, 0.51],
+            [0.12, 0.22, 0.32, 0.42, 0.52],
+            [0.13, 0.23, 0.33, 0.43, 0.53],
+            [0.14, 0.24, 0.34, 0.44, 0.54],
+        ]);
+
+        let res = y.watch_leaky().matmul(x.clone());
+        let res_rev = x.watch_leaky().matmul(y.clone());
+
+        assert!(res.allclose(&res_rev, None, None));
+
+        let grad_res = res.softmax().backward();
+        let grad_res_rev = res_rev.softmax().backward();
+
+        // let grad_res = res.softmax().backward().get_grad_ref(&x.id);
+        // let grad_res_rev = res_rev.softmax().backward().get_grad_ref(&x.id);
+
+        assert_eq!(grad_res.get_grad_ref(&x.id), grad_res_rev.get_grad_ref(&x.id));
+
+
+    }
+}

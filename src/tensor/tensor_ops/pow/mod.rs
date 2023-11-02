@@ -47,8 +47,6 @@ where
 
             lhs.device.backward(&lhs, &mut src_grad, &out_grad, exponent)?;
 
-           
-
             Ok(())
         });
 
