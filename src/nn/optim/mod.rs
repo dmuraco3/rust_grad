@@ -89,6 +89,9 @@ impl <E: FloatUnit> ADAM<E, CPU> {
         // iterate through everything
         
         self.t+=1;
+        // if self.t > 100 {
+        //     self.config.step_size = E::from_f32(0.0008);
+        // }
 
         let b1 = self.config.beta1;
         let b2 = self.config.beta2;
@@ -124,30 +127,23 @@ impl <E: FloatUnit> ADAM<E, CPU> {
             ))| {
                 // actually doing element-wise ADAM operations here
 
-                if *grad_ele < E::from_f32(-10.0) || *grad_ele > E::from_f32(10.0) {
+                if *grad_ele < E::from_f32(-20.0) || *grad_ele > E::from_f32(20.0) {
                     println!("found a wild ass gradient: {}", grad_ele);
                 }
                 // clip gradient
-                let grad_ele = *grad_ele + E::EPSILON;
-                // let grad_ele = grad_ele.max(E::from_f32(-10_f32));
-                // let grad_ele = grad_ele.min(E::from_f32(10_f32));
-
+                let grad_ele = *grad_ele;
+                let grad_ele = grad_ele.max(E::from_f32(-20_f32));
+                let grad_ele = grad_ele.min(E::from_f32(20_f32));
 
                 // calculating moments for current timestep
                 *m1_ele = b1*(*m1_ele) + (E::ONE-b1)*(grad_ele); // calculating m1_t
                 *m2_ele = b2*(*m2_ele) + (E::ONE-b2)*(grad_ele.pow(2)); // calculating m2_t
 
-                
                 // correcting bias
                 let m1_hat: E = *m1_ele / (E::ONE - b1.pow(self.t as u16));
                 let m2_hat: E = *m2_ele / (E::ONE - b2.pow(self.t as u16));
                 
-                // println!("{}", step_size * (m1_hat / (m2_hat.sqrt() + epsilon)));
-                // print!("{esc}c", esc = 27 as char);
-                
-                *trainable_ele = *trainable_ele - step_size * (m1_hat / (m2_hat.sqrt() + epsilon));
-
-
+                *trainable_ele = *trainable_ele - step_size * (m1_hat / (m2_hat.sqrt() + epsilon)) ;
             })
         });
 
