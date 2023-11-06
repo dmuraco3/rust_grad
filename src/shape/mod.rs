@@ -1,6 +1,6 @@
-use std::{fmt::{Debug, Display}, ops::IndexMut, sync::RwLockWriteGuard};
+use std::{fmt::{Debug, Display}, ops::IndexMut, sync::RwLockWriteGuard, vec};
 
-use crate::{tensor::HasErr, dtypes::Unit, devices::cpu::CPU};
+use crate::{tensor::HasErr, dtypes::Unit, devices::{cpu::CPU, metal::{MetalGpuError, MetalGPU, MetalVec}}};
 
 pub trait Dim: 'static + Copy + Clone + Debug + PartialEq {
     fn size(&self)->usize;
@@ -126,9 +126,14 @@ pub trait TensorInnerLength<E> {
 
 }
 
-impl <E: Unit> TensorInnerLength<E> for <CPU as Storage<E>>::Vec {
+impl <E: Unit> TensorInnerLength<E> for Vec<E> {
     fn len(&self) -> usize {
         self.len()
+    }
+}
+impl <E: Unit> TensorInnerLength<E> for MetalVec<E> {
+    fn len(&self) -> usize {
+        todo!()
     }
 }
 
