@@ -1,8 +1,8 @@
-use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, time::Instant};
+use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, time::Instant, ops::IndexMut, mem::{size_of_val, size_of}};
 use colored::Colorize;
 
 use rand::Rng;
-use rust_grad::{devices::{cpu::CPU, metal::MetalGPU}, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::TryMatMul, relu::TryReLU, cross_entropy::TryCrossEntropy, utilities::backward::BackwardPropagate, softmax::TrySoftmax, add::TryAdd}, Watch, tape::{SplitTape, PutTape}, RandTensor}, shape::{Rank2, Const, Rank1}, nn::optim::ADAM};
+use rust_grad::{devices::{cpu::CPU, metal::MetalGPU}, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::TryMatMul, relu::TryReLU, cross_entropy::TryCrossEntropy, utilities::backward::BackwardPropagate, softmax::TrySoftmax, add::TryAdd}, Watch, tape::{SplitTape, PutTape}, RandTensor}, shape::{Rank2, Const, Rank1, Shape}, nn::optim::ADAM};
 
 // use rust_grad::{
 //     tensor::{
@@ -239,11 +239,51 @@ fn main() {
 
     let device = MetalGPU::default();
 
-    let ten: Tensor<Rank2<4, 4>, f32, MetalGPU> = device.zeros();
+    const SIZE: usize = 4;
+    
+    
+    // let a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand_range(-1.0..1.0);
+    // let b: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand_range(-1.0..1.0);
+    let mut a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.zeros();
+    let mut b: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.zeros();
+    a.copy_from_array([
+        [0.11, 0.22, 0.33, 0.44],
+        [0.11, 0.22, 0.33, 0.44],
+        [0.11, 0.22, 0.33, 0.44],
+        [0.11, 0.22, 0.33, 0.44],
+    ]);
+    b.copy_from_array([
+        [0.1, 0.2, 0.3, 0.4],
+        [0.1, 0.2, 0.3, 0.4],
+        [0.1, 0.2, 0.3, 0.4],
+        [0.1, 0.2, 0.3, 0.4],
+    ]);
+    let c = a.clone().matmul(b.clone());
 
-    for x in ten.data.read().unwrap().clone().into_iter() {
-        println!("{}", x);
-    }
+    println!("{}", c);
+    
+    println!("{:?} : {:?} : {:?}", a.data.read().unwrap().buf.contents(), b.data.read().unwrap().buf.contents(), c.data.read().unwrap().buf.contents());
+    // 4348510208
+    // 4348510464
+    // 4348510720
 
+    let cpu = CPU::default();
 
+    let a: Tensor<Rank2<4, 4>, f32, CPU> = cpu.from_2d_array([
+        [0.11, 0.22, 0.33, 0.44],
+        [0.11, 0.22, 0.33, 0.44],
+        [0.11, 0.22, 0.33, 0.44],
+        [0.11, 0.22, 0.33, 0.44],
+    ]);
+    let b = cpu.from_2d_array([
+        [0.1, 0.2, 0.3, 0.4],
+        [0.1, 0.2, 0.3, 0.4],
+        [0.1, 0.2, 0.3, 0.4],
+        [0.1, 0.2, 0.3, 0.4],
+    ]);
+
+    let start = Instant::now();
+    let c = a.matmul(b);
+    println!("cpu matmul: {:?}", start.elapsed());
+    println!("{}", c);
 }

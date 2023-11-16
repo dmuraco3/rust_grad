@@ -1,0 +1,2 @@
+xcrun -sdk macosx metal -c src/tensor/tensor_ops/matmul/metal/sgemm.metal -o src/tensor/tensor_ops/matmul/metal/sgemm.air
+xcrun -sdk macosx metallib src/tensor/tensor_ops/matmul/metal/sgemm.air -o src/tensor/tensor_ops/matmul/metal/sgemm.metallib

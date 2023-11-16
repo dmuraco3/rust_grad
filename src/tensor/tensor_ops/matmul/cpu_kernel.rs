@@ -1,6 +1,4 @@
-use std::{sync::{Arc, RwLockReadGuard, RwLock}, borrow::BorrowMut, ops::Index};
-
-use std::collections::btree_map::Entry::Vacant;
+use std::sync::RwLockReadGuard;
 
 use crate::{dtypes::Unit, devices::cpu::CPU, shape::{Dim, Storage, Shape}, tensor::{ZerosTensor, Tensor, tape::Gradients}};
 
@@ -106,7 +104,6 @@ impl MatVecImpl<f32> for CPU {
                 let b = rhs_data[i_j];
                 out_data[i_i] += a * b;
             }
-            // println!("{:?}", out_data);
         }
     }
 }
@@ -124,7 +121,6 @@ impl MatVecImpl<f64> for CPU {
                 let b = rhs_data[i_j];
                 out_data[i_i] += a * b;
             }
-            // println!("{:?}", out_data);
         }
     }
 }
@@ -141,7 +137,7 @@ where
     ) -> Result<crate::tensor::Tensor<(I,K), E, Self>, Self::Err> {
         let (i, j): (I,J) = lhs.shape;
         let k: K = rhs.shape.1;
-        let mut output = self.try_zeros_from(&(i,k))?;
+        let output = self.try_zeros_from(&(i,k))?;
 
         <Self as MatMatImpl<E>>::matmul(
             (i, j, k),
@@ -159,9 +155,6 @@ where
         rhs: &Tensor<(J,K), E, Self>,
         grads: &mut Gradients<E, Self>,
         out: &Tensor<(I, K), E, Self>,
-        // mut lhs_grad: &mut Self::Vec,
-        // mut rhs_grad: &mut Self::Vec,
-        // out_grad: &Self::Vec,
     ) -> Result<(), Self::Err> {
         let (i, j): (I,J) = lhs.shape;
         let k: K = rhs.shape.1;
@@ -199,8 +192,8 @@ where
         lhs: &Tensor<(I, J), E, Self>,
         rhs: &Tensor<(J, ), E, Self>,
     ) -> Result<crate::tensor::Tensor<(I,), E, Self>, Self::Err> {
-        let (i,j) = lhs.shape;
-        let mut output = lhs.device.try_zeros_from(&(i,)).unwrap();
+        let (i,_j) = lhs.shape;
+        let output = lhs.device.try_zeros_from(&(i,)).unwrap();
 
         <CPU as MatVecImpl<E>>::matmul(lhs.shape, lhs.data.read().unwrap(), rhs.data.read().unwrap(), &mut output.data.write().unwrap());
 
@@ -227,7 +220,6 @@ where
 
         // dOut w.r.t. dLhs = (1->I).T * rhs
 
-        
         // derive lhs
         let lhs_grad = grads.get_grad_mut(&lhs.id);
 
@@ -238,8 +230,6 @@ where
                 lhs_grad[i_i * j.size() + i_j] += a * b;
             }
         }
-
-        
 
         // derive rhs
         let rhs_grad = grads.get_grad_mut(&rhs.id);
@@ -256,6 +246,4 @@ where
 
         Ok(())
     }
-
-    
 }

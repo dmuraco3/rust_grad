@@ -8,6 +8,8 @@ use crate::{
     dtypes::Unit
 };
 
+use super::metal::MetalGPU;
+
 #[derive(Debug,Clone)]
 pub struct CPU {}
 
@@ -121,6 +123,24 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
 }
 
 impl <Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, CPU> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let data = self.data.read().unwrap().clone();
+        write!(f,"[")?;
+        for i_y in 0..self.shape.0.size() {
+            write!(f, "{}[", " ".repeat((i_y !=0) as usize))?;
+
+            for i_x in 0..self.shape.1.size() {
+                Display::fmt(&data[self.shape.1.size() * (i_y) + i_x], f)?;
+                write!(f,"{}", ", ".repeat((i_x != self.shape.1.size()-1) as usize))?;   
+            }
+            write!(f,"]{}\n", [",","]"][(i_y == self.shape.0.size()-1) as usize])?;
+        }
+
+        Ok(())
+    }
+}
+
+impl <Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, MetalGPU> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read().unwrap().clone();
         write!(f,"[")?;

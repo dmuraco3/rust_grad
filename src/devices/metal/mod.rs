@@ -1,8 +1,9 @@
-use std::{fmt::Display, sync::{Arc, RwLock}, marker::PhantomData, clone, ops::{IndexMut, Index}, ffi::c_void, mem::size_of};
+use std::{fmt::Display, sync::{Arc, RwLock}, marker::PhantomData, clone, ops::{IndexMut, Index, Range, Deref}, ffi::c_void, mem::size_of};
 
-use metal::{DeviceRef, Device, MTLResourceOptions};
+use metal::{DeviceRef, Device, MTLResourceOptions, objc::rc::autoreleasepool, Buffer};
+use rand::{distributions::{uniform::SampleUniform, Standard, Uniform}, prelude::Distribution, Rng, rngs::StdRng, SeedableRng};
 
-use crate::{shape::{Shape, Storage, HasShape}, dtypes::Unit, tensor::{HasErr, ZerosTensor, Tensor, tape::{unique_id, NoneTape}}};
+use crate::{shape::{Shape, Storage, HasShape}, dtypes::Unit, tensor::{HasErr, ZerosTensor, Tensor, tape::{unique_id, NoneTape}, RandTensor}};
 
 #[derive(Debug, Clone)]
 pub struct MetalGPU {
@@ -24,8 +25,8 @@ impl Default for MetalGPU {
 /// Vector backed by GPU memory
 #[derive(Clone, Debug)]
 pub struct MetalVec<E> {
-    buf: metal::Buffer,
-    len: usize,
+    pub buf: metal::Buffer,
+    pub len: usize,
 
     _marker: PhantomData<E>
 }
@@ -36,9 +37,9 @@ impl <E> Index<usize> for MetalVec<E> {
     fn index(&self, index: usize) -> &Self::Output {
         let ptr = self.buf.contents() as *const c_void;
 
-        let ptr = ptr.cast::<E>();
-
+        
         let data = unsafe {
+            let ptr = ptr.add(index * size_of::<E>()).cast::<E>();
             ptr.as_ref().unwrap()
         };
         
@@ -48,13 +49,18 @@ impl <E> Index<usize> for MetalVec<E> {
 
 impl <E> IndexMut<usize> for MetalVec<E> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+    
         let ptr = self.buf.contents() as *mut c_void;
-        let ptr = ptr.cast::<E>();
-        let mut data = unsafe {
+        let data = unsafe {
+            let ptr = ptr.cast::<E>();
+            let ptr = ptr.offset(index as isize);
+            // println!("{} || {}", self.buf.contents() as isize, ptr as isize);
             ptr.as_mut().unwrap()
         };
 
         data
+
+
     }
 }
 
@@ -134,17 +140,13 @@ impl HasErr for MetalGPU {
 impl <E: Unit> ZerosTensor<E> for MetalGPU {
     fn try_zeros_from<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> {
         let shape = *src.shape();
-
-        let test_data = vec![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].iter().map(|ele| E::from_u32(*ele as u32)).collect::<Vec<E>>();
-
-        let buffer = self.device.new_buffer_with_data(
-            test_data.as_ptr().cast::<c_void>(), 
-            (shape.num_elements() * size_of::<E>()) as u64,
-            MTLResourceOptions::StorageModeShared,
-        );
-
-        // let buffer = self.device.new_buffer(shape.num_elements() as _, MTLResourceOptions::StorageModeShared);
-
+        // let buffer = self.device.new_buffer_with_data(
+        //     test_data.as_ptr().cast::<c_void>(), 
+        //     (shape.num_elements() * size_of::<E>()) as u64,
+        //     MTLResourceOptions::StorageModeShared,
+        // );
+        let buffer = self.device.new_buffer((size_of::<E>() * shape.num_elements()) as u64, MTLResourceOptions::StorageModeShared);
+        
         let buffer: MetalVec<E> = MetalVec {
             buf: buffer,
             len: shape.num_elements(),
@@ -160,6 +162,50 @@ impl <E: Unit> ZerosTensor<E> for MetalGPU {
             shape,
             data,
         })
+    }
+}
 
+impl <E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
+    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> 
+    where
+        Standard: Distribution<E>,
+    {
+        let shape = *src.shape();
+        let mut out: Tensor<S::Shape, E, MetalGPU> = self.try_zeros_from(&shape).unwrap();
+
+        let mut out_buf = out.data.write().unwrap();
+
+        {
+            let mut rng = rand::thread_rng();
+            for idx in 0..shape.num_elements() {
+                *out_buf.index_mut(idx) = rng.gen();
+            }
+        }
+
+        drop(out_buf);
+        
+        Ok(out)
+    }
+
+    fn try_fill_rand_range<S: HasShape>(&self, src: &S, range: Range<E>) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
+    where Standard: Distribution<E>
+    {
+        let shape = *src.shape();
+        let out: Tensor<S::Shape, E, MetalGPU> = self.try_zeros_from(&shape).unwrap();
+
+        let mut out_buf = out.data.write().unwrap();
+
+        let between = Uniform::from(range);
+        // let mut rng = rand::thread_rng();
+        let mut rng = StdRng::seed_from_u64(1227 as u64);
+
+        for idx in 0..shape.num_elements() {
+            *out_buf.index_mut(idx) = between.sample(&mut rng);
+        }
+
+        drop(out_buf);
+        
+
+        Ok(out)
     }
 }

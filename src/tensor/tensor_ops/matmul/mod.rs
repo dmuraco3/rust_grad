@@ -5,6 +5,7 @@ use crate::{tensor::{HasErr, Tensor, self, tape::{Tape, Merge, SplitTape, PutTap
 use self::cpu_kernel::MatMatImpl;
 
 pub mod cpu_kernel;
+pub mod metal;
 
 pub fn matmul<Lhs, Rhs>(lhs: Lhs, rhs: Rhs) -> Lhs::Output
 where
@@ -60,7 +61,7 @@ where
     J: Dim,
     K: Dim,
     E: Unit,
-    D: MatMatKernel<E> + MatMatImpl<E> + ZerosTensor<E>,
+    D: MatMatKernel<E> + ZerosTensor<E>,
     T: Tape<E, D> + Merge<R>,
     R: Tape<E, D>
 {

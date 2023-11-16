@@ -1,4 +1,5 @@
 pub mod cpu_kernel;
+pub mod metal;
 
 use std::fmt::{Debug, Display};
 use crate::{dtypes::Unit, shape::{Storage, Shape}, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape, Merge, Gradients, UniqueID}, HasErr}};
