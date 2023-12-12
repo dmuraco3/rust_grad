@@ -1,4 +1,5 @@
 pub mod cpu_kernel;
+pub mod metal;
 
 use std::{fmt::Debug, vec};
 

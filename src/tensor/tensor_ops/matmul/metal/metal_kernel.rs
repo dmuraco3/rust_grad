@@ -1,12 +1,12 @@
-use std::{ffi::c_void, time::Instant};
+use std::time::Instant;
 
-use metal::{FunctionConstantValues, objc::rc::autoreleasepool};
+use metal::objc::rc::autoreleasepool;
 
 use crate::{dtypes::Unit, shape::Dim, devices::metal::MetalGPU, tensor::{Tensor, tape::Gradients, ZerosTensor}};
 
 use super::super::MatMatKernel;
 
-const LIB_DATA: &[u8] = include_bytes!("sgemm.metallib");
+const LIB_DATA: &[u8] = include_bytes!("matmul.metallib");
 
 struct MetalState {
     pub queue: metal::CommandQueue,

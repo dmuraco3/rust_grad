@@ -2,9 +2,8 @@
 
 using namespace metal;
 
-kernel void add_matrices(
-    device const float* in_a,
-    device const float* in_b,
+kernel void relu(
+    device const float* src,
     device float* result,
     uint2 pos [[thread_position_in_grid]],
     uint2 grid_size [[grid_size]],
@@ -12,5 +11,5 @@ kernel void add_matrices(
 ) {
     uint idx = pos.y * thread_grid_size.x + pos.x;
 
-    result[idx] = in_a[idx] + in_b[idx];
+    result[idx] = max(src[idx], 0.0);
 }

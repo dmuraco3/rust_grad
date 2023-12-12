@@ -239,51 +239,35 @@ fn main() {
 
     let device = MetalGPU::default();
 
-    const SIZE: usize = 4;
+    const SIZE: usize = 1024;
     
     
     // let a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand_range(-1.0..1.0);
     // let b: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand_range(-1.0..1.0);
-    let mut a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.zeros();
+    let mut a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand();
     let mut b: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.zeros();
-    a.copy_from_array([
-        [0.11, 0.22, 0.33, 0.44],
-        [0.11, 0.22, 0.33, 0.44],
-        [0.11, 0.22, 0.33, 0.44],
-        [0.11, 0.22, 0.33, 0.44],
-    ]);
-    b.copy_from_array([
-        [0.1, 0.2, 0.3, 0.4],
-        [0.1, 0.2, 0.3, 0.4],
-        [0.1, 0.2, 0.3, 0.4],
-        [0.1, 0.2, 0.3, 0.4],
-    ]);
-    let c = a.clone().matmul(b.clone());
+    // a.copy_from_array([
+    //     [0.11, 0.22, 0.33, 0.44],
+    //     [0.11, 0.22, 0.33, 0.44],
+    //     [0.11, 0.22, 0.33, 0.44],
+    //     [0.11, 0.22, 0.33, 0.44],
+    // ]);
+    // b.copy_from_array([
+    //     [0.1, 0.2, 0.3, 0.4],
+    //     [0.1, 0.2, 0.3, 0.4],
+    //     [0.1, 0.2, 0.3, 0.4],
+    //     [0.1, 0.2, 0.3, 0.4],
+    // ]);
+    let c = a.relu();
 
-    println!("{}", c);
     
-    println!("{:?} : {:?} : {:?}", a.data.read().unwrap().buf.contents(), b.data.read().unwrap().buf.contents(), c.data.read().unwrap().buf.contents());
-    // 4348510208
-    // 4348510464
-    // 4348510720
-
     let cpu = CPU::default();
 
-    let a: Tensor<Rank2<4, 4>, f32, CPU> = cpu.from_2d_array([
-        [0.11, 0.22, 0.33, 0.44],
-        [0.11, 0.22, 0.33, 0.44],
-        [0.11, 0.22, 0.33, 0.44],
-        [0.11, 0.22, 0.33, 0.44],
-    ]);
-    let b = cpu.from_2d_array([
-        [0.1, 0.2, 0.3, 0.4],
-        [0.1, 0.2, 0.3, 0.4],
-        [0.1, 0.2, 0.3, 0.4],
-        [0.1, 0.2, 0.3, 0.4],
-    ]);
+    let a: Tensor<Rank2<SIZE, SIZE>, f32, CPU> = cpu.fill_rand();
+    let b: Tensor<Rank2<SIZE, SIZE>, f32, CPU> = cpu.fill_rand();
 
     let start = Instant::now();
-    let c = a.matmul(b);
-    println!("cpu matmul: {:?}", start.elapsed());
-    println!("{}", c);
+    let c = a.relu();
+    println!("cpu relu: {:?}", start.elapsed());
+    // println!("{}", c);
 }
