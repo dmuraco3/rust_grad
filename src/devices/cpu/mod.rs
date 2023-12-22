@@ -4,7 +4,7 @@ use rand::{Rng, distributions::{Standard, uniform::SampleUniform, Uniform}, prel
 
 use crate::{
     shape::{Shape, Storage, HasShape, Rank2, Dim, Const, Rank1},
-    tensor::{ZerosTensor, Tensor, HasErr, RandTensor, tape::{unique_id, OwnedTape, Tape, NoneTape}},
+    tensor::{ZerosTensor, Tensor, HasErr, RandTensor, tape::{unique_id, OwnedTape, Tape, NoneTape, UniqueID}, Arange},
     dtypes::Unit
 };
 
@@ -118,6 +118,19 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
             data: out_data,
             device: Self::default(),
             tape: NoneTape
+        })
+    }
+}
+
+impl <E: Unit> Arange<E> for CPU {
+    fn try_arange<S: Dim>(&self, end: &S) -> Result<Tensor<(S, ), E, Self>, Self::Err> {
+        let seq = (0..end.size()).map(|e| E::from_usize(e)).collect::<Vec<E>>();
+        Ok(Tensor {
+            id: unique_id(),
+            shape: (end.clone(), ),
+            data: Arc::new(RwLock::new(seq)),
+            device: Self::default(),
+            tape: NoneTape,
         })
     }
 }

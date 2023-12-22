@@ -8,7 +8,7 @@ use std::{
 
 use rand::{distributions::Standard, prelude::Distribution};
 
-use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1}, dtypes::{Unit, FloatUnit}};
+use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1, Dim, ConstDim, Const}, dtypes::{Unit, FloatUnit}};
 
 use self::tape::{UniqueID, Tape, NoneTape, OwnedTape, PutTape};
 
@@ -122,24 +122,31 @@ pub trait ZerosTensor<E: Unit>: Storage<E> + HasErr {
 }
 
 pub trait RandTensor<E: Unit>: Storage<E> + HasErr {
+    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
+    where Standard: Distribution<E>;
+    
+    fn try_fill_rand_range<S: HasShape>(&self, src: &S, range: Range<E>) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
+    where Standard: Distribution<E>;
+    
     fn fill_rand<S: ConstShape>(&self) -> Tensor<S, E, Self> 
     where Standard: Distribution<E>
     {
         Self::try_fill_rand::<S>(&self, &Default::default()).unwrap()
     }
 
-    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
-    where Standard: Distribution<E>;
-    
     fn fill_rand_range<S: ConstShape>(&self, range: Range<E>) -> Tensor<S, E, Self>
     where Standard: Distribution<E>
     {
         Self::try_fill_rand_range::<S>(&self, &Default::default(), range).unwrap()
     }
+}
 
-    fn try_fill_rand_range<S: HasShape>(&self, src: &S, range: Range<E>) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
-    where Standard: Distribution<E>;
-    
+pub trait Arange<E: Unit>: Storage<E> + HasErr {
+    fn try_arange<S: Dim>(&self, end: &S) -> Result<Tensor<(S, ), E, Self>, Self::Err>;
+
+    fn arange<const S: usize>(&self) -> Tensor<Rank1<S>, E, Self> {
+        Self::try_arange::<Const::<S>>(&self, &Default::default()).unwrap()
+    }
 }
 
 impl<const Y: usize, const X: usize, E: Unit + Copy, D: ZerosTensor<E>, T: Tape<E, D>> Tensor<Rank2<Y, X>, E, D, T> {

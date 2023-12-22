@@ -59,6 +59,8 @@ pub type Rank2<const X:usize, const Y:usize> = (Const<X>, Const<Y>);
 
 pub type Rank3<const X: usize, const Y: usize, const Z: usize> = (Const<X>, Const<Y>, Const<Z>);
 
+pub type Rank4<const X: usize, const Y: usize, const Z: usize, const W: usize> = (Const<X>, Const<Y>, Const<Z>, Const<W>);
+
 impl Shape for () {
     type Concrete = [usize;0];
 
@@ -95,6 +97,15 @@ impl <X: Dim, Y: Dim, Z: Dim> Shape for (X, Y, Z) {
     }
 }
 
+impl <X: Dim, Y: Dim, Z: Dim, W: Dim> Shape for (X, Y, Z, W) {
+    type Concrete = [usize;4];
+
+    fn concrete(&self) -> Self::Concrete {
+        return [self.0.size(), self.1.size(), self.2.size(), self.3.size()];
+    }
+}
+
+
 impl ConstShape for () {
     const NumElements: usize = 1;
 }
@@ -109,6 +120,10 @@ impl <X:ConstDim, Y:ConstDim> ConstShape for (X, Y) {
 
 impl <X: ConstDim, Y: ConstDim, Z: ConstDim> ConstShape for (X, Y, Z) {
     const NumElements: usize = X::SIZE * Y::SIZE * Z::SIZE;
+}
+
+impl <X: ConstDim, Y: ConstDim, Z: ConstDim, W: ConstDim> ConstShape for (X, Y, Z, W) {
+    const NumElements: usize = X::SIZE * Y::SIZE * Z::SIZE * W::SIZE;
 }
 
 pub trait Storage<E>: 'static + std::fmt::Debug + Default + Clone + HasErr {
