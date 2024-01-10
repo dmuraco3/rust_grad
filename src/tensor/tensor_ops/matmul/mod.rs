@@ -1,10 +1,6 @@
-use std::collections::btree_map::Entry::Vacant;
+use crate::{tensor::{HasErr, Tensor, tape::{Tape, Merge, SplitTape, PutTape, Gradients}, ZerosTensor}, shape::{Dim, Storage}, dtypes::Unit};
 
-use crate::{tensor::{HasErr, Tensor, self, tape::{Tape, Merge, SplitTape, PutTape, Gradients}, ZerosTensor}, shape::{Dim, Storage}, dtypes::Unit, devices::cpu::CPU};
-
-use self::cpu_kernel::MatMatImpl;
-
-pub mod cpu_kernel;
+pub mod cpu;
 pub mod metal;
 
 pub fn matmul<Lhs, Rhs>(lhs: Lhs, rhs: Rhs) -> Lhs::Output

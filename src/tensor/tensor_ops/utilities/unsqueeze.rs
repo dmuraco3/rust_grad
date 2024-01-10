@@ -33,7 +33,5 @@ where
 
     fn try_reshape(self, shape: NS) -> Result<Self::Output, Self::Error> {
         todo!()
-
-        
     }
 }

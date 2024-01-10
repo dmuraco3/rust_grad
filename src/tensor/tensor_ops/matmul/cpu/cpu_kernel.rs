@@ -2,7 +2,7 @@ use std::sync::RwLockReadGuard;
 
 use crate::{dtypes::Unit, devices::cpu::CPU, shape::{Dim, Storage, Shape}, tensor::{ZerosTensor, Tensor, tape::Gradients}};
 
-use super::{MatMatKernel, MatVecKernel};
+use crate::tensor::tensor_ops::matmul::{MatMatKernel, MatVecKernel};
 
 pub trait MatMatImpl<E: Unit> {
     fn matmul<I:Dim, J:Dim, K:Dim>(
@@ -124,7 +124,6 @@ impl MatVecImpl<f64> for CPU {
         }
     }
 }
-
 
 impl<E: Unit> MatMatKernel<E> for CPU
 where

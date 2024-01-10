@@ -225,6 +225,7 @@ pub fn generate_rotary_matrix<E: Unit, D: Storage<E> + ZerosTensor<E>>(dim: usiz
         for (i, ii) in (0..rotary_i.shape.num_elements()).zip((0..dim).step_by(2)) {
             data[i] = E::from_usize(ii);
         }
+        let x = (0..10);
     }
 
     let mut rotary_matrix = device.try_zeros_from(&(Const::<2>, dim)).unwrap();

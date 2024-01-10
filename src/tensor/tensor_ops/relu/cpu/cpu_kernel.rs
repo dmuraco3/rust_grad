@@ -1,6 +1,6 @@
 use crate::{dtypes::Unit, devices::cpu::CPU, shape::Shape, tensor::Tensor};
 
-use super::ReLUKernel;
+use crate::tensor::tensor_ops::relu::ReLUKernel;
 
 impl <E: Unit> ReLUKernel<E> for CPU {
     fn forward<S: Shape>(&self, src: &Tensor<S, E, Self>, out: &mut Tensor<S,E,Self>) -> Result<(), Self::Err> {

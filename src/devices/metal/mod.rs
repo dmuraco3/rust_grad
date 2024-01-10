@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::{Arc, RwLock}, marker::PhantomData, clone, ops::{IndexMut, Index, Range, Deref}, ffi::c_void, mem::size_of};
+use std::{fmt::{Display, Debug}, sync::{Arc, RwLock}, marker::PhantomData, clone, ops::{IndexMut, Index, Range, Deref}, ffi::c_void, mem::size_of};
 
 use metal::{DeviceRef, Device, MTLResourceOptions, objc::rc::autoreleasepool, Buffer};
 use rand::{distributions::{uniform::SampleUniform, Standard, Uniform}, prelude::Distribution, Rng, rngs::StdRng, SeedableRng};
@@ -66,7 +66,6 @@ impl <E> IndexMut<usize> for MetalVec<E> {
 
 impl <E> IntoIterator for MetalVec<E> {
     type Item = E;
-
     type IntoIter = MetalVecIntoIter<E>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -77,6 +76,32 @@ impl <E> IntoIterator for MetalVec<E> {
         };
 
         t.into_iter()
+    }
+}
+
+impl <E> IntoIterator for &MetalVec<E> {
+    type Item = E;
+    type IntoIter = MetalVecIntoIter<E>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let t = Self::IntoIter {
+            ptr: (self.buf.contents() as *const c_void).cast::<E>(),
+            len: self.len,
+            idx: 0,
+        };
+
+        t.into_iter()
+    }
+}
+
+impl <E: Unit> Display for MetalVec<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"[ ")?;
+        for e in self.into_iter() {
+            write!(f, "{} ", e)?;
+        }
+        writeln!(f, "]")?;
+        Ok(())
     }
 }
 
@@ -103,7 +128,6 @@ impl <E> Iterator for MetalVecIntoIter<E> {
         }
     }
 }
-
 
 impl <E: Unit> Storage<E> for MetalGPU {
     type Vec = MetalVec<E>;

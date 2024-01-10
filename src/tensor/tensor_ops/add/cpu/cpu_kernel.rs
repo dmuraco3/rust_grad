@@ -1,6 +1,6 @@
-use crate::{tensor::{tensor_ops::pow::PowKernel, Tensor, tape::{Gradients, UniqueID}}, devices::cpu::CPU, dtypes::Unit};
+use crate::{tensor::{Tensor, tape::{Gradients, UniqueID}}, devices::cpu::CPU, dtypes::Unit};
 
-use super::AddKernel;
+use crate::tensor::tensor_ops::add::AddKernel;
 
 impl <E: Unit> AddKernel<E> for CPU {
     fn forward<S: crate::shape::Shape>(&self, lhs: &Tensor<S, E, Self>, rhs: &Tensor<S, E, Self>, out: &mut Tensor<S, E, Self>) -> Result<(), Self::Err> {

@@ -1,9 +1,9 @@
-pub mod cpu_kernel;
+pub mod cpu;
 pub mod metal;
 
 use std::fmt::Debug;
 
-use crate::{shape::{Storage, Rank0, Shape, ConstDim, Rank1}, dtypes::Unit, tensor::{Tensor, tape::{Gradients, UniqueID, Tape, Merge, SplitTape, PutTape}, ZerosTensor}};
+use crate::{shape::{Storage, Rank0, Shape, ConstDim}, dtypes::Unit, tensor::{Tensor, tape::{Gradients, UniqueID, Tape, Merge, SplitTape, PutTape}, ZerosTensor, HasErr}, devices::metal::MetalGPU};
 
 use super::softmax::{TrySoftmax, SoftmaxKernel};
 
@@ -14,12 +14,14 @@ pub trait CrossEntropyKernel<E: Unit>: Storage<E> {
     /// * `src`    - Tensor returned from softmax (saves operations)
     /// * `labels` - One-hot encoded vector 
     fn forward<S: Shape>(
+        &self,
         src: &Tensor<S, E, Self>,
         labels: &Tensor<S, E, Self>,
         out: &mut Tensor<Rank0, E, Self>,
     ) -> Result<(), Self::Err>;
 
     fn backward<S: Shape>(
+        &self,
         src: &Tensor<S, E, Self>,
         labels: &Tensor<S, E, Self>,
         src_id: UniqueID,
@@ -56,9 +58,14 @@ where
 
         let mut tape = src_tape.merge(labels_tape);
 
-        let src_softmax = src.clone().try_softmax().unwrap();
 
-        <D as CrossEntropyKernel<E>>::forward(&src_softmax, &labels, &mut out)?;
+        //
+        // NOTE NOTE NOTE NOTE
+        // UNCOMMENT THIS CODE IF TESTING FOR ANY DEVICE THAT ISNT THE METAL GPU
+        // I'M GOING TO MERGE THE TWO KERNELS INTO ONE KERNEL FOR SOFTMAX CROSS ENTROPY ON METAL GPU
+        // let src_softmax = src.clone().try_softmax().unwrap();
+
+        <D as CrossEntropyKernel<E>>::forward(&src.device, &src, &labels, &mut out)?;
 
         let out_id = out.id.clone();
 
@@ -67,7 +74,7 @@ where
             grads.try_alloc_for((&src.device, src.id, src.shape.num_elements()))?;
             grads.try_alloc_for((&labels.device, labels.id, labels.shape.num_elements()))?;
 
-            D::backward(&src_softmax, &labels, src.id.clone(), out_id, grads)?;
+            CrossEntropyKernel::backward(&src.device, &src, &labels, src.id.clone(), out_id, grads)?;
 
             Ok(())
         });

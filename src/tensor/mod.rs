@@ -121,7 +121,7 @@ pub trait ZerosTensor<E: Unit>: Storage<E> + HasErr {
     fn try_zeros_from<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>;
 }
 
-pub trait RandTensor<E: Unit>: Storage<E> + HasErr {
+pub trait RandTensor<E: Unit = f32>: Storage<E> + HasErr {
     fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
     where Standard: Distribution<E>;
     
@@ -147,6 +147,7 @@ pub trait Arange<E: Unit>: Storage<E> + HasErr {
     fn arange<const S: usize>(&self) -> Tensor<Rank1<S>, E, Self> {
         Self::try_arange::<Const::<S>>(&self, &Default::default()).unwrap()
     }
+
 }
 
 impl<const Y: usize, const X: usize, E: Unit + Copy, D: ZerosTensor<E>, T: Tape<E, D>> Tensor<Rank2<Y, X>, E, D, T> {
