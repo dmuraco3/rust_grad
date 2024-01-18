@@ -14,3 +14,9 @@ rand = "0.8.5"
 [dev-dependencies]
 sentencepiece = "0.11.2"
 sentencepiece-sys="0.11.2"
+
+[build]
+rustdocflags = ["--html-in-header", "./src/docs-header.html"]
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "./src/docs-header.html"]

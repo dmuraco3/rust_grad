@@ -170,7 +170,7 @@ impl <const X: usize, E: Unit + Copy, D: ZerosTensor<E>> Tensor<Rank1<X>, E, D> 
         }
     }
 
-    pub fn copy_from_slice(&mut self, src: &[E;X]) {
+    pub fn copy_from_slice(&mut self, src: &[E]) {
         let mut self_inner = self.data.write().unwrap();
         for el_x in 0..X {
             *self_inner.index_mut(el_x) = src[el_x];

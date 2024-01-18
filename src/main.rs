@@ -237,37 +237,29 @@ fn main() {
     // test_big_network();    
     // test_medium_network();
 
-    let device = MetalGPU::default();
+   
+    let gpu = MetalGPU::default();
 
-    const SIZE: usize = 1024;
-    
-    
-    // let a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand_range(-1.0..1.0);
-    // let b: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand_range(-1.0..1.0);
-    let mut a: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.fill_rand();
-    let mut b: Tensor<Rank2<SIZE, SIZE>, f32, MetalGPU> = device.zeros();
-    // a.copy_from_array([
-    //     [0.11, 0.22, 0.33, 0.44],
-    //     [0.11, 0.22, 0.33, 0.44],
-    //     [0.11, 0.22, 0.33, 0.44],
-    //     [0.11, 0.22, 0.33, 0.44],
-    // ]);
-    // b.copy_from_array([
-    //     [0.1, 0.2, 0.3, 0.4],
-    //     [0.1, 0.2, 0.3, 0.4],
-    //     [0.1, 0.2, 0.3, 0.4],
-    //     [0.1, 0.2, 0.3, 0.4],
-    // ]);
-    let c = a.relu();
+    let aa = [0.0, 0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let bb = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
-    
+    let a: Tensor<(Const<8>,), f32, MetalGPU> = gpu.from_array(aa);
+
+    let b = gpu.from_array(bb);
+
+    let c = a.try_cross_entropy(b).unwrap();
+
+    println!("out: {}", unsafe{*c.data.read().unwrap().buf.contents().cast::<f32>()});
+
     let cpu = CPU::default();
 
-    let a: Tensor<Rank2<SIZE, SIZE>, f32, CPU> = cpu.fill_rand();
-    let b: Tensor<Rank2<SIZE, SIZE>, f32, CPU> = cpu.fill_rand();
+    let a = cpu.from_array(aa);
+    let b = cpu.from_array(bb);
+    let c = a.try_cross_entropy(b).unwrap();
 
-    let start = Instant::now();
-    let c = a.relu();
-    println!("cpu relu: {:?}", start.elapsed());
-    // println!("{}", c);
+    println!("out: {}", c.data.read().unwrap()[0]);
+
+
+
+
 }

@@ -35,13 +35,18 @@ using namespace metal;
 
 kernel void softmax(
     device const float *src [[ buffer(0) ]],
-    device float *out [[ buffer(1) ]],
-    volatile device atomic_float *exp_sum [[ buffer(2) ]],
+    device const float *exp_sum [[ buffer(1) ]],
+    device float *out [[ buffer(2) ]],
     uint pos [[thread_position_in_grid]]
 ) {
-    atomic_fetch_add_explicit(exp_sum, exp(src[pos]), memory_order_relaxed);
+    out[pos] = exp(src[pos]) / exp_sum[0];
+    // out[pos] = exp_sum[0];
+}
 
-    threadgroup_barrier(mem_flags::mem_none);
-
-    out[pos] = exp(src[pos]) / atomic_load_explicit(exp_sum, memory_order_relaxed);
+kernel void exp_sum(
+    device const float *src [[ buffer(0) ]],
+    volatile device atomic_float *out [[ buffer(1) ]],
+    uint pos [[ thread_position_in_grid ]]
+) {
+    atomic_fetch_add_explicit(out, exp(src[pos]), memory_order_relaxed);
 }

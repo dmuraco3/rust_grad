@@ -1,9 +1,30 @@
-use std::{fmt::{Display, Debug}, sync::{Arc, RwLock}, marker::PhantomData, clone, ops::{IndexMut, Index, Range, Deref}, ffi::c_void, mem::size_of};
+use std::{
+    borrow::BorrowMut,
+    clone,
+    ffi::c_void,
+    fmt::{Debug, Display},
+    marker::PhantomData,
+    mem::size_of,
+    ops::{Deref, Index, IndexMut, Range},
+    sync::{Arc, RwLock}, time::Instant,
+};
 
-use metal::{DeviceRef, Device, MTLResourceOptions, objc::rc::autoreleasepool, Buffer};
-use rand::{distributions::{uniform::SampleUniform, Standard, Uniform}, prelude::Distribution, Rng, rngs::StdRng, SeedableRng};
+use metal::{objc::rc::autoreleasepool, Buffer, Device, DeviceRef, MTLResourceOptions, CommandQueue, ComputePipelineState};
+use rand::{
+    distributions::{uniform::SampleUniform, Standard, Uniform},
+    prelude::Distribution,
+    rngs::StdRng,
+    Rng, SeedableRng,
+};
 
-use crate::{shape::{Shape, Storage, HasShape}, dtypes::Unit, tensor::{HasErr, ZerosTensor, Tensor, tape::{unique_id, NoneTape}, RandTensor}};
+use crate::{
+    dtypes::Unit,
+    shape::{HasShape, Rank1, Shape, Storage},
+    tensor::{
+        tape::{unique_id, NoneTape, Tape},
+        HasErr, RandTensor, Tensor, ZerosTensor,
+    },
+};
 
 #[derive(Debug, Clone)]
 pub struct MetalGPU {
@@ -12,15 +33,27 @@ pub struct MetalGPU {
 
 impl Default for MetalGPU {
     fn default() -> Self {
-
         let device = Device::system_default().expect("No metal device found");
 
-        Self {
-            device
-        }
+        Self { device }
     }
 }
 
+impl MetalGPU {
+    pub fn from_array<const S: usize, E: Unit>(&self, src: [E; S]) -> Tensor<Rank1<S>, E, Self> {
+        let mut tensor: Tensor<Rank1<S>, E, MetalGPU> = self.zeros();
+
+        let mut tensor_inner = tensor.borrow_mut().data.write().unwrap();
+
+        for (idx, ele) in src.iter().enumerate() {
+            *tensor_inner.index_mut(idx) = *ele;
+        }
+
+        drop(tensor_inner);
+
+        tensor
+    }
+}
 
 /// Vector backed by GPU memory
 #[derive(Clone, Debug)]
@@ -28,28 +61,26 @@ pub struct MetalVec<E> {
     pub buf: metal::Buffer,
     pub len: usize,
 
-    _marker: PhantomData<E>
+    _marker: PhantomData<E>,
 }
 
-impl <E> Index<usize> for MetalVec<E> {
+impl<E> Index<usize> for MetalVec<E> {
     type Output = E;
 
     fn index(&self, index: usize) -> &Self::Output {
         let ptr = self.buf.contents() as *const c_void;
 
-        
         let data = unsafe {
             let ptr = ptr.add(index * size_of::<E>()).cast::<E>();
             ptr.as_ref().unwrap()
         };
-        
+
         data
     }
 }
 
-impl <E> IndexMut<usize> for MetalVec<E> {
+impl<E> IndexMut<usize> for MetalVec<E> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-    
         let ptr = self.buf.contents() as *mut c_void;
         let data = unsafe {
             let ptr = ptr.cast::<E>();
@@ -59,12 +90,10 @@ impl <E> IndexMut<usize> for MetalVec<E> {
         };
 
         data
-
-
     }
 }
 
-impl <E> IntoIterator for MetalVec<E> {
+impl<E> IntoIterator for MetalVec<E> {
     type Item = E;
     type IntoIter = MetalVecIntoIter<E>;
 
@@ -79,7 +108,7 @@ impl <E> IntoIterator for MetalVec<E> {
     }
 }
 
-impl <E> IntoIterator for &MetalVec<E> {
+impl<E> IntoIterator for &MetalVec<E> {
     type Item = E;
     type IntoIter = MetalVecIntoIter<E>;
 
@@ -94,9 +123,9 @@ impl <E> IntoIterator for &MetalVec<E> {
     }
 }
 
-impl <E: Unit> Display for MetalVec<E> {
+impl<E: Unit> Display for MetalVec<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"[ ")?;
+        write!(f, "[ ")?;
         for e in self.into_iter() {
             write!(f, "{} ", e)?;
         }
@@ -111,7 +140,7 @@ pub struct MetalVecIntoIter<E> {
     idx: usize,
 }
 
-impl <E> Iterator for MetalVecIntoIter<E> {
+impl<E> Iterator for MetalVecIntoIter<E> {
     type Item = E;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -121,7 +150,7 @@ impl <E> Iterator for MetalVecIntoIter<E> {
         };
 
         if self.idx < self.len {
-            self.idx+=1;
+            self.idx += 1;
             Some(data)
         } else {
             None
@@ -129,7 +158,7 @@ impl <E> Iterator for MetalVecIntoIter<E> {
     }
 }
 
-impl <E: Unit> Storage<E> for MetalGPU {
+impl<E: Unit> Storage<E> for MetalGPU {
     type Vec = MetalVec<E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err> {
@@ -147,7 +176,7 @@ impl <E: Unit> Storage<E> for MetalGPU {
 
 #[derive(Debug, Clone, Copy)]
 pub enum MetalGpuError {
-    SmallProblem
+    SmallProblem,
 }
 
 impl Display for MetalGpuError {
@@ -161,20 +190,23 @@ impl HasErr for MetalGPU {
     const Err: Self::Err = MetalGpuError::SmallProblem;
 }
 
-impl <E: Unit> ZerosTensor<E> for MetalGPU {
+impl<E: Unit> ZerosTensor<E> for MetalGPU {
     fn try_zeros_from<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> {
         let shape = *src.shape();
         // let buffer = self.device.new_buffer_with_data(
-        //     test_data.as_ptr().cast::<c_void>(), 
+        //     test_data.as_ptr().cast::<c_void>(),
         //     (shape.num_elements() * size_of::<E>()) as u64,
         //     MTLResourceOptions::StorageModeShared,
         // );
-        let buffer = self.device.new_buffer((size_of::<E>() * shape.num_elements()) as u64, MTLResourceOptions::StorageModeShared);
-        
+        let buffer = self.device.new_buffer(
+            (size_of::<E>() * shape.num_elements()) as u64,
+            MTLResourceOptions::StorageModeShared,
+        );
+
         let buffer: MetalVec<E> = MetalVec {
             buf: buffer,
             len: shape.num_elements(),
-            _marker: PhantomData
+            _marker: PhantomData,
         };
 
         let data = Arc::new(RwLock::new(buffer));
@@ -189,8 +221,8 @@ impl <E: Unit> ZerosTensor<E> for MetalGPU {
     }
 }
 
-impl <E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
-    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> 
+impl<E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
+    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
     where
         Standard: Distribution<E>,
     {
@@ -207,12 +239,17 @@ impl <E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
         }
 
         drop(out_buf);
-        
+
         Ok(out)
     }
 
-    fn try_fill_rand_range<S: HasShape>(&self, src: &S, range: Range<E>) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
-    where Standard: Distribution<E>
+    fn try_fill_rand_range<S: HasShape>(
+        &self,
+        src: &S,
+        range: Range<E>,
+    ) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
+    where
+        Standard: Distribution<E>,
     {
         let shape = *src.shape();
         let out: Tensor<S::Shape, E, MetalGPU> = self.try_zeros_from(&shape).unwrap();
@@ -228,8 +265,82 @@ impl <E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
         }
 
         drop(out_buf);
-        
 
         Ok(out)
+    }
+}
+
+
+pub struct MetalState {
+    pub queue: CommandQueue,
+    pub pipeline: ComputePipelineState,
+}
+
+impl MetalState {
+    pub fn new_with_shader(device: &Device, library_data: &[u8], shader_name: &str) -> Self {
+        let queue = device.new_command_queue();
+        let lib = device.new_library_with_data(library_data).unwrap();
+        let function = lib.get_function(shader_name, None).unwrap();
+        
+        let pipeline = device
+            .new_compute_pipeline_state_with_function(&function)
+            .unwrap();
+
+        Self { queue, pipeline }
+    }
+}
+
+impl MetalGPU {
+    pub fn call_kernel<S: Shape>(
+        &self,
+        library_data: &[u8],
+        shader_name: &str,
+        buffers: &[&Buffer],
+        shape: S,
+    ) -> Result<(), <MetalGPU as HasErr>::Err> {
+        let device = &self.device;
+
+
+        autoreleasepool(|| {
+            let state = MetalState::new_with_shader(device, library_data, shader_name);
+
+            let command_buffer = state.queue.new_command_buffer();
+            let compute_encoder = command_buffer.new_compute_command_encoder();
+            compute_encoder.set_compute_pipeline_state(&state.pipeline);
+
+            for (i, buffer) in buffers.iter().enumerate() {
+                compute_encoder.set_buffer(i as u64, Some(buffer), 0);
+            }
+
+            let w = state.pipeline.thread_execution_width();
+            
+            let grid_size = metal::MTLSize::new(shape.num_elements() as u64, 1, 1);
+            let threadgroup_size = metal::MTLSize::new(w, 1, 1);
+
+            compute_encoder.dispatch_threads(grid_size, threadgroup_size);
+
+            compute_encoder.end_encoding();
+            command_buffer.commit();
+
+            #[cfg(debug_assertions)]
+            let start = Instant::now();
+
+            command_buffer.wait_until_completed();
+
+            #[cfg(debug_assertions)]
+            {
+                let elapsed = start.elapsed();
+                println!("time to execute {} on Metal GPU: {:?}", shader_name, elapsed);
+            }
+
+        });
+
+        Ok(())
+    }
+
+    /// notice the plural in kernels
+    /// this method initializes and calls multiple kernels
+    pub fn call_kernels() -> Result<(), <MetalGPU as HasErr>::Err> {
+        todo!();
     }
 }

@@ -3,10 +3,10 @@ use std::{time::Instant, mem::size_of};
 use metal::{objc::rc::autoreleasepool, ComputePipelineState, MTLResourceOptions};
 
 use crate::{
-    devices::metal::{MetalGPU, MetalVec},
+    devices::metal::{MetalGPU, MetalVec, MetalState},
     dtypes::{FloatUnit, Unit},
     shape::{Rank0, Shape, Rank1},
-    tensor::{tape::{self, UniqueID, Gradients}, tensor_ops::{cross_entropy::CrossEntropyKernel, add::metal::metal_kernel::MetalState, softmax::SoftmaxKernel}, Tensor, ZerosTensor},
+    tensor::{tape::{self, UniqueID, Gradients}, tensor_ops::{cross_entropy::CrossEntropyKernel, softmax::SoftmaxKernel}, Tensor, ZerosTensor},
 };
 
 const LIB_DATA: &[u8] = include_bytes!("softmax.metallib");
