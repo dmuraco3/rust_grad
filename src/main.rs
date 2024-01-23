@@ -84,7 +84,7 @@ fn test_medium_network() {
 
     
 
-    let device: CPU = CPU::default();
+    let device = MetalGPU::default();
 
     let b1: f32 = (6_f32 / (L1+L2)).sqrt();
     let b2: f32 = (6_f32 / (L2+L3)).sqrt();
@@ -98,14 +98,15 @@ fn test_medium_network() {
     let bias_2: Tensor<Rank1<{L3 as usize}>, f32, _> = device.zeros();
     let bias_3: Tensor<Rank1<{L4 as usize}>, f32, _> = device.zeros();
 
-    let mut optimizer: ADAM<f32, _> = ADAM::new(&device, &[
-        &w1, 
-        &w2, 
-        &w3, 
-        &bias_1, 
-        &bias_2,
-        &bias_3,
-    ]);
+    let mut binding = [
+        w1.clone().flatten().unwrap(), 
+        w2.clone().reshape(((L3 * L2) as usize, )).unwrap(), 
+        w3.clone().reshape(((L4 * L3) as usize, )).unwrap(), 
+        bias_1.clone().flatten().unwrap(), 
+        bias_2.clone().flatten().unwrap(),
+        bias_3.clone().flatten().unwrap(),
+    ];
+    let mut optimizer: ADAM<f32, _> = ADAM::new(&device, &mut binding);
 
 
     let mut losses = Vec::new();
@@ -130,7 +131,7 @@ fn test_medium_network() {
         for (batch, (image_flat, label_index)) in x.iter().zip(y.iter()).enumerate() {
             let labels: Tensor<Rank1<10>, f32, _> = device.zeros();
             labels.data.write().unwrap()[*label_index as usize] = 1_f32;
-            let mut image: Tensor<Rank1<784>, f32, CPU> = device.zeros();
+            let mut image: Tensor<Rank1<784>, f32, _> = device.zeros();
             image.copy_from_slice(image_flat); 
 
             let x = image.watch_leaky().matmul(w1.clone()).add(bias_1.clone()).relu();
@@ -138,7 +139,7 @@ fn test_medium_network() {
             let x = x.matmul(w3.clone()).add(bias_3.clone());
             let loss = x.try_cross_entropy(labels).unwrap();
     
-            if loss.data.read().unwrap().iter().sum::<f32>().is_nan() {converged = true;break;} 
+            if loss.data.read().unwrap()[0].is_nan() {converged = true;break;} 
 
             losses.push(loss.data.read().unwrap()[0]);
             let grads = loss.backward();
@@ -160,13 +161,13 @@ fn test_medium_network() {
 
     actual.data.write().unwrap()[labels[2127] as usize] = 1_f32;
     
-    let mut x: Tensor<Rank1<784>, f32, CPU> = device.zeros();
+    let mut x: Tensor<Rank1<784>, f32, _> = device.zeros();
     x.copy_from_slice(&images[2127]);
 
-    let mut cool_picture: Tensor<Rank2<28, 28>, f32, CPU> = device.zeros();
+    let mut cool_picture: Tensor<Rank2<28, 28>, f32, _> = device.zeros();
     cool_picture.data = Arc::new(RwLock::new(x.data.read().unwrap().to_owned()));
 
-    for x in cool_picture.data.read().unwrap().chunks(28) {
+    for x in images[2127].chunks(28) {
         for y in x {
             let shade = (y * 255.0) as u8;
             print!("{}", "▊▊".custom_color(colored::CustomColor::new(shade, shade, shade)))
@@ -181,83 +182,63 @@ fn test_medium_network() {
 
     println!("{:?}", soft.data.read().unwrap());
     println!("{:?}", actual.data.read().unwrap());
-    println!("loss: {}", loss.data.read().unwrap().first().unwrap())
+    println!("loss: {}", loss.data.read().unwrap()[0])
 }
 
-fn test_tensor() {
-    let dev = CPU::default();
+// // fn test_tensor() {
+//     let dev = CPU::default();
     
-    // let src: Tensor<Rank1<1000>, f32, _> = dev.fill_rand_range(0_f32..0.9_f32);
-    let src: Tensor<(Const<8>,), f32, _> = dev.from_array([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]);
+//     // let src: Tensor<Rank1<1000>, f32, _> = dev.fill_rand_range(0_f32..0.9_f32);
+//     let src: Tensor<(Const<8>,), f32, _> = dev.from_array([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]);
 
-    let weights: Tensor<Rank2<8, 8>, f32, _> = dev.fill_rand_range(-0.5_f32..0.5_f32);
+//     let weights: Tensor<Rank2<8, 8>, f32, _> = dev.fill_rand_range(-0.5_f32..0.5_f32);
 
-    let biases: Tensor<(Const<8>,), f32, CPU> = dev.zeros();
+//     let biases: Tensor<(Const<8>,), f32, CPU> = dev.zeros();
 
-    let mut labels = dev.zeros();
-    labels.data.write().unwrap()[0]=1_f32;
+//     let mut labels = dev.zeros();
+//     labels.data.write().unwrap()[0] = 1_f32;
 
 
-    let mut optim = ADAM::new(&dev, &[&weights, &biases]);
+//     let mut optim = ADAM::new(&dev, &mut [weights.reshape((64, )).unwrap(), biases.reshape((8, )).unwrap()]);
 
-    for _ in 0..1 {
-        let x = weights.watch_leaky().matmul(src.clone()).add(biases.clone()).relu();
+//     for _ in 0..1 {
+//         let x = weights.watch_leaky().matmul(src.clone()).add(biases.clone()).relu();
 
-        println!("{:?}", x.data.read().unwrap());
+//         println!("{:?}", x.data.read().unwrap());
         
-        let x_id = x.id.clone();
+//         let x_id = x.id.clone();
 
-        let (cross_entropy, cross_entropy_tape) = x.try_cross_entropy(labels.clone()).unwrap().split_tape();
+//         let (cross_entropy, cross_entropy_tape) = x.try_cross_entropy(labels.clone()).unwrap().split_tape();
     
-        // println!("{}: {}", iii, cross_entropy.data.read().unwrap()[0]);
-        // if cross_entropy.data.read().unwrap()[0] == 0.0 {
-        //     exit(-1)
-        // }
-        // cross_entropy.tape.operations.sort_by(|a, b| b.0.cmp(&a.0));
-        // for op in cross_entropy.tape.operations.into_iter() {
-        //     op.1(&mut cross_entropy.tape.gradients).unwrap();
-        // }
-        let grads = cross_entropy.clone().put_tape(cross_entropy_tape).backward();
+//         // println!("{}: {}", iii, cross_entropy.data.read().unwrap()[0]);
+//         // if cross_entropy.data.read().unwrap()[0] == 0.0 {
+//         //     exit(-1)
+//         // }
+//         // cross_entropy.tape.operations.sort_by(|a, b| b.0.cmp(&a.0));
+//         // for op in cross_entropy.tape.operations.into_iter() {
+//         //     op.1(&mut cross_entropy.tape.gradients).unwrap();
+//         // }
+//         let grads = cross_entropy.clone().put_tape(cross_entropy_tape).backward();
 
-        println!("{:?}", grads.get_grad_ref(&biases.id));
-        println!();
-        println!("bias before optim: {:?}", biases.data.read().unwrap());
-        optim.step(grads);
+//         println!("{:?}", grads.get_grad_ref(&biases.id));
+//         println!();
+//         println!("bias before optim: {:?}", biases.data.read().unwrap());
+//         optim.step(grads);
 
-        println!("{:?}", biases.data.read().unwrap());
+//         println!("{:?}", biases.data.read().unwrap());
     
-        // println!("{}", cross_entropy.tape.gradients.get(&weights).unwrap());
-    }
+//         // println!("{}", cross_entropy.tape.gradients.get(&weights).unwrap());
+//     }
 
-    // println!("actual_grad : {:?}", actual_grad.data.read().unwrap());
-    // println!("eq: {}", src_grad.allclose(&actual_grad, None, None));
-}
+//     // println!("actual_grad : {:?}", actual_grad.data.read().unwrap());
+//     // println!("eq: {}", src_grad.allclose(&actual_grad, None, None));
+// }
 
 fn main() {
     // test_big_network();    
     // test_medium_network();
 
-   
-    let gpu = MetalGPU::default();
-
-    let aa = [0.0, 0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0];
-    let bb = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-
-    let a: Tensor<(Const<8>,), f32, MetalGPU> = gpu.from_array(aa);
-
-    let b = gpu.from_array(bb);
-
-    let c = a.try_cross_entropy(b).unwrap();
-
-    println!("out: {}", unsafe{*c.data.read().unwrap().buf.contents().cast::<f32>()});
-
-    let cpu = CPU::default();
-
-    let a = cpu.from_array(aa);
-    let b = cpu.from_array(bb);
-    let c = a.try_cross_entropy(b).unwrap();
-
-    println!("out: {}", c.data.read().unwrap()[0]);
+    test_medium_network();
 
 
 

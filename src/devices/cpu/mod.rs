@@ -171,10 +171,30 @@ impl <Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, MetalGPU> {
     }
 }
 
-impl<X: Dim, E: Unit> Display for Tensor<(X,), E, CPU> {
+// impl<X: Dim, E: Unit> Display for Tensor<(X,), E, CPU> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         let data = self.data.read().unwrap().clone();
+//         let mut data = data.iter();
+
+//         if self.shape.0.size() == 1 {
+//             writeln!(f, "[{:?}]", data.next().unwrap())?;
+//         } else {
+//             write!(f, "[{:?},", data.next().unwrap())?;
+//             for _ in 0..self.shape.0.size()-2 {
+//                 write!(f, "{:?},", data.next().unwrap())?;
+//             }
+//             write!(f, "{:?}]", data.next().unwrap())?;
+//         }
+
+
+//         Ok(())
+//     }
+// }
+
+impl<X: Dim, E: Unit, D: Storage<E>, T: Tape<E, MetalGPU>> Display for Tensor<(X,), E, D, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read().unwrap().clone();
-        let mut data = data.iter();
+        let mut data = data.into_iter();
 
         if self.shape.0.size() == 1 {
             writeln!(f, "[{:?}]", data.next().unwrap())?;
@@ -190,6 +210,9 @@ impl<X: Dim, E: Unit> Display for Tensor<(X,), E, CPU> {
         Ok(())
     }
 }
+
+
+
 
 impl <E: Unit> Display for Tensor<(), E, CPU> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

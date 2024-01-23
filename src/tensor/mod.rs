@@ -1,16 +1,20 @@
-pub mod tensor_ops;
 pub mod tape;
+pub mod tensor_ops;
 
 use std::{
-    sync::{RwLock, Arc},
-    fmt::{Debug, Display}, ops::{IndexMut, Range}
+    fmt::{Debug, Display},
+    ops::{IndexMut, Range},
+    sync::{Arc, RwLock},
 };
 
 use rand::{distributions::Standard, prelude::Distribution};
 
-use crate::{shape::{Shape, Storage, ConstShape, HasShape, Rank2, Rank1, Dim, ConstDim, Const}, dtypes::{Unit, FloatUnit}};
+use crate::{
+    dtypes::{FloatUnit, Unit},
+    shape::{Const, ConstDim, ConstShape, Dim, HasShape, Rank1, Rank2, Shape, Storage},
+};
 
-use self::tape::{UniqueID, Tape, NoneTape, OwnedTape, PutTape};
+use self::tape::{NoneTape, OwnedTape, PutTape, Tape, UniqueID};
 
 #[derive(Clone, Debug)]
 pub struct Tensor<SHAPE: Shape, E: Unit, D: Storage<E>, T = NoneTape> {
@@ -27,7 +31,7 @@ pub trait TensorLike<E: Unit, D: Storage<E>> {
     fn get_id(&self) -> UniqueID;
 }
 
-impl <S: Shape,E: Unit, D:Storage<E>> TensorLike<E, D> for Tensor<S, E, D> {
+impl<S: Shape, E: Unit, D: Storage<E>> TensorLike<E, D> for Tensor<S, E, D> {
     fn get_data_ref(&self) -> Arc<RwLock<D::Vec>> {
         self.data.clone()
     }
@@ -39,31 +43,77 @@ impl <S: Shape,E: Unit, D:Storage<E>> TensorLike<E, D> for Tensor<S, E, D> {
     }
 }
 
-impl <S, E, D, T> Tensor<S, E, D, T>
+impl<S, E, D, T> Tensor<S, E, D, T>
 where
     S: Shape,
     E: FloatUnit,
-    D: Storage<E>, 
-    T: Tape<E, D>
+    D: Storage<E>,
+    T: Tape<E, D>,
 {
     pub fn allclose(&self, rhs: &Self, rtol: Option<E>, atol: Option<E>) -> bool {
         let rtol = rtol.unwrap_or(E::EPSILON);
-        let atol = atol.unwrap_or(E::EPSILON*E::EPSILON);
+        let atol = atol.unwrap_or(E::EPSILON * E::EPSILON);
 
         let lhs_data = self.data.read().unwrap().to_owned();
         let rhs_data = rhs.data.read().unwrap().to_owned();
 
         for (lhs, rhs) in lhs_data.into_iter().zip(rhs_data.into_iter()) {
-            let abs: E = (lhs-rhs).abs();
+            let abs: E = (lhs - rhs).abs();
             if !(abs <= (atol + rtol * rhs.abs())) {
-                return false
+                return false;
             }
-        };
-        return true
+        }
+        return true;
+    }
+
+    
+}
+
+impl<S, E, D> Tensor<S, E, D>
+where
+    S: Shape,
+    E: Unit,
+    D: Storage<E>,
+{
+    pub fn reshape<NS: Shape>(self, new_shape: NS) -> Result<Tensor<NS, E, D>, String> {
+        assert_eq!(new_shape.num_elements(), self.shape.num_elements());
+        if new_shape.num_elements() == self.shape.num_elements() {
+            Ok(Tensor {
+                id: self.id,
+                shape: new_shape,
+                data: self.data,
+                device: self.device,
+                tape: self.tape,
+            })
+        } else {
+            Err(format!(
+                "Cannot reshape tensor of shape {:?} to shape {:?}",
+                self.shape, new_shape
+            ))
+        }
+    }
+
+    pub fn flatten(self) -> Result<Tensor<(usize, ), E, D>, String> {
+        let new_shape = (self.shape.num_elements(), );
+        self.reshape(new_shape)
+    }
+
+    pub fn sum(self) -> E {
+        let mut sum = E::ZERO;
+
+        let self_arc = Arc::clone(&self.data);
+        let self_data = self_arc.read().unwrap();
+
+        for ii in 0..self.shape.num_elements() {
+            sum += self_data[ii];
+        }
+
+        sum
     }
 }
 
-impl <S, E, D, T> PartialEq for Tensor<S, E, D, T>
+
+impl<S, E, D, T> PartialEq for Tensor<S, E, D, T>
 where
     S: Shape,
     E: Unit,
@@ -74,17 +124,15 @@ where
         let lhs_data = self.data.read().unwrap().to_owned();
         let rhs_data = other.data.read().unwrap().to_owned();
 
-
         for (lhs, rhs) in lhs_data.into_iter().zip(rhs_data.into_iter()) {
             if lhs != rhs {
-                return false
+                return false;
             }
         }
 
-        return true
+        return true;
     }
 }
-
 
 pub trait Watch<E, D: Storage<E>>: Clone {
     type Watched;
@@ -96,14 +144,12 @@ pub trait Watch<E, D: Storage<E>>: Clone {
     fn watched_leaky(self) -> Self::Watched;
 }
 
-impl <E: Unit, D: Storage<E>, S: Shape> Watch<E, D> for Tensor<S, E, D> {
+impl<E: Unit, D: Storage<E>, S: Shape> Watch<E, D> for Tensor<S, E, D> {
     type Watched = Tensor<S, E, D, OwnedTape<E, D>>;
 
     fn watched_leaky(self) -> Self::Watched {
         self.put_tape(OwnedTape::default())
     }
-
-    
 }
 
 pub trait HasErr: Sized {
@@ -111,7 +157,6 @@ pub trait HasErr: Sized {
 
     const Err: Self::Err;
 }
-
 
 pub trait ZerosTensor<E: Unit>: Storage<E> + HasErr {
     fn zeros<S: ConstShape>(&self) -> Tensor<S, E, Self> {
@@ -123,47 +168,55 @@ pub trait ZerosTensor<E: Unit>: Storage<E> + HasErr {
 
 pub trait RandTensor<E: Unit = f32>: Storage<E> + HasErr {
     fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
-    where Standard: Distribution<E>;
-    
-    fn try_fill_rand_range<S: HasShape>(&self, src: &S, range: Range<E>) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
-    where Standard: Distribution<E>;
-    
-    fn fill_rand<S: ConstShape>(&self) -> Tensor<S, E, Self> 
-    where Standard: Distribution<E>
+    where
+        Standard: Distribution<E>;
+
+    fn try_fill_rand_range<S: HasShape>(
+        &self,
+        src: &S,
+        range: Range<E>,
+    ) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
+    where
+        Standard: Distribution<E>;
+
+    fn fill_rand<S: ConstShape>(&self) -> Tensor<S, E, Self>
+    where
+        Standard: Distribution<E>,
     {
         Self::try_fill_rand::<S>(&self, &Default::default()).unwrap()
     }
 
     fn fill_rand_range<S: ConstShape>(&self, range: Range<E>) -> Tensor<S, E, Self>
-    where Standard: Distribution<E>
+    where
+        Standard: Distribution<E>,
     {
         Self::try_fill_rand_range::<S>(&self, &Default::default(), range).unwrap()
     }
 }
 
 pub trait Arange<E: Unit>: Storage<E> + HasErr {
-    fn try_arange<S: Dim>(&self, end: &S) -> Result<Tensor<(S, ), E, Self>, Self::Err>;
+    fn try_arange<S: Dim>(&self, end: &S) -> Result<Tensor<(S,), E, Self>, Self::Err>;
 
     fn arange<const S: usize>(&self) -> Tensor<Rank1<S>, E, Self> {
-        Self::try_arange::<Const::<S>>(&self, &Default::default()).unwrap()
+        Self::try_arange::<Const<S>>(&self, &Default::default()).unwrap()
     }
-
 }
 
-impl<const Y: usize, const X: usize, E: Unit + Copy, D: ZerosTensor<E>, T: Tape<E, D>> Tensor<Rank2<Y, X>, E, D, T> {
-    pub fn copy_from_array(&mut self, src: [[E;X];Y]) {
+impl<const Y: usize, const X: usize, E: Unit + Copy, D: ZerosTensor<E>, T: Tape<E, D>>
+    Tensor<Rank2<Y, X>, E, D, T>
+{
+    pub fn copy_from_array(&mut self, src: [[E; X]; Y]) {
         let mut self_inner = self.data.write().unwrap();
         for el_x in 0..X {
             for el_y in 0..Y {
                 *self_inner.index_mut(X * el_y + el_x) = src[el_y][el_x];
             }
         }
-
     }
 }
 
-impl <const X: usize, E: Unit + Copy, D: ZerosTensor<E>> Tensor<Rank1<X>, E, D> {
-    pub fn copy_from_array(&mut self, src: [E;X]){
+impl<const X: usize, E: Unit + Copy, D: ZerosTensor<E>> Tensor<Rank1<X>, E, D> {
+    pub fn copy_from_array(&mut self, src: [E; X]) {
         let mut self_inner = self.data.write().unwrap();
         for el_x in 0..X {
             *self_inner.index_mut(el_x) = src[el_x];
@@ -178,14 +231,14 @@ impl <const X: usize, E: Unit + Copy, D: ZerosTensor<E>> Tensor<Rank1<X>, E, D> 
     }
 }
 
-impl <S: Shape, E: Unit, D: Storage<E>, T: Tape<E, D>> HasErr for Tensor<S, E, D, T> {
+impl<S: Shape, E: Unit, D: Storage<E>, T: Tape<E, D>> HasErr for Tensor<S, E, D, T> {
     type Err = D::Err;
 
     const Err: Self::Err = D::Err;
 }
 
-impl <S: Shape, E: Unit, D: Storage<E>> HasShape for Tensor<S,E,D> {
-    type WithShape<New: Shape> = Tensor<New,E,D>;
+impl<S: Shape, E: Unit, D: Storage<E>> HasShape for Tensor<S, E, D> {
+    type WithShape<New: Shape> = Tensor<New, E, D>;
 
     type Shape = S;
 
@@ -196,15 +249,15 @@ impl <S: Shape, E: Unit, D: Storage<E>> HasShape for Tensor<S,E,D> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{shape::Rank2, devices::cpu::CPU, tensor::tape::NoneTape};
+    use crate::{devices::cpu::CPU, shape::Rank2, tensor::tape::NoneTape};
 
     use super::{Tensor, ZerosTensor};
 
     #[test]
     fn test_zeros() {
         let dev = CPU::default();
-        let x: Tensor<Rank2<28,28>, f32, CPU, NoneTape> = dev.zeros();
+        let x: Tensor<Rank2<28, 28>, f32, CPU, NoneTape> = dev.zeros();
 
-        assert_eq!(*x.data.read().unwrap(), vec![0.0;28*28]);
+        assert_eq!(*x.data.read().unwrap(), vec![0.0; 28 * 28]);
     }
 }

@@ -183,6 +183,8 @@ pub trait SplitTape {
     type NoTape: PutTape<Self::Tape, Output = Self>;
 
     fn split_tape(self) -> (Self::NoTape, Self::Tape);
+
+    
 }
 
 impl <S: Shape, E: Unit, D: Storage<E>, T> SplitTape for Tensor<S, E, D, T> {

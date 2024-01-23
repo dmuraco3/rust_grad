@@ -12,3 +12,13 @@ kernel void cross_entropy(
 
     atomic_fetch_sub_explicit(loss, inner, memory_order_relaxed);
 }
+
+kernel void cross_entropy_backward(
+    device const float *src [[ buffer(0) ]],
+    device const float *labels [[ buffer(1) ]],
+    device float *src_grad [[ buffer(2) ]],
+    uint pos [[thread_position_in_grid]],
+    uint num_ele [[ threads_per_threadgroup ]]
+) {
+    src_grad[pos] = src[pos] - labels[pos];
+}

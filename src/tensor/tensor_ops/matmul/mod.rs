@@ -28,6 +28,7 @@ pub trait MatMatKernel<E: Unit>: Storage<E> {
 
 pub trait MatVecKernel<E: Unit>: Storage<E> {
     fn forward<I: Dim, J: Dim>(
+        &self,
         lhs: &Tensor<(I, J), E, Self>,
         rhs: &Tensor<(J, ), E, Self>,
     ) -> Result<Tensor<(I,), E, Self>, Self::Err>;
@@ -118,7 +119,7 @@ where
 
         let mut tape = lhs_tape.merge(rhs_tape);
         
-        let out = D::forward(&lhs, &rhs)?;
+        let out = lhs.device.forward(&lhs, &rhs)?;
 
         let out_clone = out.clone();
 
@@ -151,7 +152,7 @@ where
 
         let mut tape = lhs_tape.merge(rhs_tape);
         
-        let out = D::forward(&rhs, &lhs)?;
+        let out =   lhs.device.forward(&rhs, &lhs)?;
 
         let out_clone = out.clone();
 

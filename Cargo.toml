@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 colored = "2.0.4"
-metal = "0.27.0"
+metal = {git = "https://github.com/ivarflakstad/metal-rs", branch = "master", features = ["mps"]}
+# metal = "0.27.0"
 num-traits = "0.2.17"
 rand = "0.8.5"
 

@@ -21,13 +21,17 @@ impl <E: Unit> AddKernel<E> for CPU {
     fn backward<S: crate::shape::Shape>(&self, grads: &mut Gradients<E, Self>, lhs_id: &UniqueID, rhs_id: &UniqueID, out_id: &UniqueID) -> Result<(), Self::Err> {
         let out_grad = grads.get_grad_ref(&out_id).to_owned();
 
-        grads.get_grad_mut(&lhs_id).iter_mut().zip(out_grad.iter()).for_each(|(lhs, out)| {
-            *lhs = *out;
-        });
+        let left_grad = grads.get_grad_mut(&lhs_id);
+        
+        for ii in 0..out_grad.len() {
+            left_grad[ii] = out_grad[ii];
+        }
+        
+        let right_grad = grads.get_grad_mut(&rhs_id);
 
-        grads.get_grad_mut(&rhs_id).iter_mut().zip(out_grad.iter()).for_each(|(rhs, out)| {
-            *rhs = *out;
-        });
+        for ii in 0..out_grad.len() {
+            right_grad[ii] = out_grad[ii];
+        }
         
         Ok(())
     }

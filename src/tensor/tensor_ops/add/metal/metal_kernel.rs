@@ -12,6 +12,7 @@ use crate::{
 const LIB_DATA: &[u8] = include_bytes!("add.metallib");
 
 const SHADER_NAME: &str = "add_matrices";
+const SHADER_BACKWARD_NAME: &str = "add_matrices_backward";
 
 pub struct MetalState {
     pub queue: metal::CommandQueue,
@@ -43,6 +44,22 @@ impl<E: Unit> AddKernel<E> for MetalGPU {
         rhs_id: &UniqueID,
         out_id: &UniqueID,
     ) -> Result<(), Self::Err> {
-        todo!()
+        let out_grad = grads.get_grad_ref(&out_id).to_owned();
+        let out_grad_buf = &out_grad.buf;
+
+        let left_grad = grads.get_grad_mut(&lhs_id);
+        let left_grad_buf = &left_grad.buf.clone();
+
+        let right_grad = grads.get_grad_mut(&rhs_id);
+
+        let right_grad_buf = &right_grad.buf.clone();
+
+        let buffers = &[
+            out_grad_buf,
+            left_grad_buf,
+            right_grad_buf,
+        ];
+
+        self.call_kernel(LIB_DATA, SHADER_BACKWARD_NAME, buffers, (out_grad.len,))
     }
 }

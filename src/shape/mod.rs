@@ -30,6 +30,7 @@ impl <const X:usize> Debug for Const<X> {
     }
 }
 
+
 impl<const X:usize> Dim for Const<X> {
     fn size(&self)->usize {
         X

@@ -43,7 +43,6 @@ impl<E: Unit + FloatUnit> CrossEntropyKernel<E> for CPU {
         let src_data = src.data.read().unwrap();
         let labels_data = labels.data.read().unwrap();
 
-        let out_grad = grads.get_grad_ref(&out_id).to_owned();
         let src_grad = grads.get_grad_mut(&src_id);
 
         for i in 0..src_grad.len() {

@@ -10,3 +10,5 @@ pub mod sum;
 pub mod cross_entropy;
 pub mod add;
 pub mod exp;
+pub mod overload_ops;
+pub mod sqrt;

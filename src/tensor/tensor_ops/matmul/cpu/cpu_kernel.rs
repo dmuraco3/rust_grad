@@ -188,6 +188,7 @@ where
     Self: MatVecImpl<E>
 {
     fn forward<I: Dim, J: Dim>(
+        &self,
         lhs: &Tensor<(I, J), E, Self>,
         rhs: &Tensor<(J, ), E, Self>,
     ) -> Result<crate::tensor::Tensor<(I,), E, Self>, Self::Err> {

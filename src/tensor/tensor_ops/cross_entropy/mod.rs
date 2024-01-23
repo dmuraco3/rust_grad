@@ -64,12 +64,18 @@ where
         // UNCOMMENT THIS CODE IF TESTING FOR ANY DEVICE THAT ISNT THE METAL GPU
         // I'M GOING TO MERGE THE TWO KERNELS INTO ONE KERNEL FOR SOFTMAX CROSS ENTROPY ON METAL GPU
         // println!("device: {}", std::any::type_name::<D>());
-        if std::any::type_name::<D>() == "rust_grad::devices::cpu::CPU" {
-            let src_softmax = src.clone().try_softmax().unwrap();
-            <D as CrossEntropyKernel<E>>::forward(&src.device, &src_softmax, &labels, &mut out)?;
+        
+        let src_softmax = if std::any::type_name::<D>() == "rust_grad::devices::cpu::CPU" {
+            src.clone().try_softmax().unwrap()
         } else {
-            <D as CrossEntropyKernel<E>>::forward(&src.device, &src, &labels, &mut out)?;
-        }
+            src.clone()
+        };
+
+
+        <D as CrossEntropyKernel<E>>::forward(&src.device, &src_softmax, &labels, &mut out)?;
+
+
+
 
 
         let out_id = out.id.clone();
@@ -79,7 +85,8 @@ where
             grads.try_alloc_for((&src.device, src.id, src.shape.num_elements()))?;
             grads.try_alloc_for((&labels.device, labels.id, labels.shape.num_elements()))?;
 
-            CrossEntropyKernel::backward(&src.device, &src, &labels, src.id.clone(), out_id, grads)?;
+
+            CrossEntropyKernel::backward(&src.device, &src_softmax, &labels, src.id.clone(), out_id, grads)?;
 
             Ok(())
         });

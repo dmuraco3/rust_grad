@@ -1,5 +1,5 @@
 use core::num;
-use std::{fmt::{Debug, Display}, ops::{Add, AddAssign, Sub, Mul, Div, Neg, MulAssign}};
+use std::{fmt::{Debug, Display}, ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign}};
 
 pub trait Unit: 
 'static
@@ -10,6 +10,7 @@ pub trait Unit:
 + Add<Self, Output = Self>
 + AddAssign<Self>
 + Sub<Output = Self>
++ SubAssign<Self>
 + Mul<Output = Self>
 + MulAssign<Self>
 + Div<Output = Self>

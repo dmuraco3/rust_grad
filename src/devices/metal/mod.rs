@@ -1,15 +1,14 @@
 use std::{
     borrow::BorrowMut,
-    clone,
     ffi::c_void,
-    fmt::{Debug, Display},
+    fmt::Display,
     marker::PhantomData,
     mem::size_of,
-    ops::{Deref, Index, IndexMut, Range},
+    ops::{Index, IndexMut, Range},
     sync::{Arc, RwLock}, time::Instant,
 };
 
-use metal::{objc::rc::autoreleasepool, Buffer, Device, DeviceRef, MTLResourceOptions, CommandQueue, ComputePipelineState};
+use metal::{objc::rc::autoreleasepool, Buffer, Device, MTLResourceOptions, CommandQueue, ComputePipelineState};
 use rand::{
     distributions::{uniform::SampleUniform, Standard, Uniform},
     prelude::Distribution,
@@ -21,7 +20,7 @@ use crate::{
     dtypes::Unit,
     shape::{HasShape, Rank1, Shape, Storage},
     tensor::{
-        tape::{unique_id, NoneTape, Tape},
+        tape::{unique_id, NoneTape},
         HasErr, RandTensor, Tensor, ZerosTensor,
     },
 };
@@ -43,6 +42,20 @@ impl MetalGPU {
     pub fn from_array<const S: usize, E: Unit>(&self, src: [E; S]) -> Tensor<Rank1<S>, E, Self> {
         let mut tensor: Tensor<Rank1<S>, E, MetalGPU> = self.zeros();
 
+        let mut tensor_inner = tensor.borrow_mut().data.write().unwrap();
+
+        for (idx, ele) in src.iter().enumerate() {
+            *tensor_inner.index_mut(idx) = *ele;
+        }
+
+        drop(tensor_inner);
+
+        tensor
+    }
+
+    pub fn from_vec_with_shape<S: Shape, E: Unit>(&self, src: Vec<E>, shape: S) -> Tensor<S, E, Self> {
+        assert_eq!(shape.num_elements(), src.len(), "src vec does not have same number of elements as desired shape");
+        let mut tensor = self.try_zeros_from(&shape).unwrap();
         let mut tensor_inner = tensor.borrow_mut().data.write().unwrap();
 
         for (idx, ele) in src.iter().enumerate() {
@@ -93,6 +106,14 @@ impl<E> IndexMut<usize> for MetalVec<E> {
     }
 }
 
+// impl <E> ZerosTensor<E> for MetalGPU {
+//     fn try_zeros_from<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> {
+//         let num_elements = src.num_elements();
+//         let zeros = vec![0;num_elements];
+//         let buf = self.device.new_buffer_with_data(&zeros as *const c_void,num_elements * size_of::<E>(), MTLResourceOptions::StorageModeShared);
+//     }
+// }
+
 impl<E> IntoIterator for MetalVec<E> {
     type Item = E;
     type IntoIter = MetalVecIntoIter<E>;
@@ -123,17 +144,6 @@ impl<E> IntoIterator for &MetalVec<E> {
     }
 }
 
-impl<E: Unit> Display for MetalVec<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[ ")?;
-        for e in self.into_iter() {
-            write!(f, "{} ", e)?;
-        }
-        writeln!(f, "]")?;
-        Ok(())
-    }
-}
-
 pub struct MetalVecIntoIter<E> {
     ptr: *const E,
     len: usize,
@@ -158,15 +168,49 @@ impl<E> Iterator for MetalVecIntoIter<E> {
     }
 }
 
+
+impl<E: Unit> Display for MetalVec<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[ ")?;
+        for e in self.into_iter() {
+            write!(f, "{} ", e)?;
+        }
+        writeln!(f, "]")?;
+        Ok(())
+    }
+}
+
+
+
 impl<E: Unit> Storage<E> for MetalGPU {
     type Vec = MetalVec<E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err> {
-        todo!()
+        let buf = self.device.new_buffer((len * size_of::<E>()) as u64, MTLResourceOptions::StorageModeShared);
+
+        let buf = MetalVec {
+            buf,
+            len,
+            _marker: PhantomData,
+        };
+
+        Ok(buf)
     }
 
     fn try_alloc_ones(&self, len: usize) -> Result<Self::Vec, Self::Err> {
-        todo!()
+        let ones = vec![E::ONE; len];
+        let buf = self.device.new_buffer_with_data(
+            ones.as_ptr().cast::<c_void>(),
+            (len * size_of::<E>()) as u64,
+            MTLResourceOptions::StorageModeShared,
+        );
+        let buf = MetalVec {
+            buf,
+            len,
+            _marker: PhantomData,
+        };
+
+        Ok(buf)
     }
 
     fn num_el(&self, st: Self::Vec) -> usize {
