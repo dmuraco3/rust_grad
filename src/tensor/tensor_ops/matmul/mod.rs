@@ -165,6 +165,35 @@ where
     }
 }
 
+impl<I, J, E, D, T> TryMatMul<&Tensor<(I, J), E, D>> for Tensor<(J,), E, D, T>
+where
+    I: Dim,
+    J: Dim,
+    E: Unit,
+    D: MatVecKernel<E>,
+    T: Tape<E, D>,
+{
+    type Output = Tensor<(I,), E, D, T>;
+
+    fn try_matmul(self, rhs: &Tensor<(I, J), E, D>) -> Result<Self::Output, Self::Err> {
+        let (lhs, mut lhs_tape) = self.split_tape();
+
+        let rhs = rhs.clone();
+
+        let out = lhs.device.forward(&rhs, &lhs)?;
+
+        let out_clone = out.clone();
+
+        lhs_tape.add_backward_op(move |grads| {
+            lhs.device.backward(&rhs, &lhs, grads, &out_clone)?;
+
+            Ok(())
+        });
+
+        Ok(out.put_tape(lhs_tape))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{

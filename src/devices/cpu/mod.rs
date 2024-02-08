@@ -306,4 +306,24 @@ impl CPU {
     pub fn from_array<const I: usize, E: Unit>(&self, src: [E; I]) -> Tensor<Rank1<I>, E, Self> {
         Self::try_from_array(&self, src).unwrap()
     }
+
+    pub fn try_from_slice<E: Unit, S: Shape>(
+        &self,
+        src: &[E],
+        shape: S,
+    ) -> Result<Tensor<S, E, Self>, CpuError> {
+        let out_data = Arc::new(RwLock::new(src.to_vec()));
+
+        Ok(Tensor {
+            shape,
+            id: unique_id(),
+            data: out_data,
+            device: Self::default(),
+            tape: NoneTape,
+        })
+    }
+
+    pub fn from_slice<E: Unit, S: Shape>(&self, src: &[E], shape: S) -> Tensor<S, E, Self> {
+        Self::try_from_slice(&self, src, shape).unwrap()
+    }
 }

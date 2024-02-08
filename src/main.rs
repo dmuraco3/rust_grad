@@ -2,7 +2,6 @@ use colored::Colorize;
 use std::{
     fs,
     io::{self, Read},
-    sync::{Arc, RwLock},
     time::Instant,
 };
 
@@ -176,21 +175,12 @@ fn test_medium_network() {
             // let mut image = device.from_slice();
             image.copy_from_slice(image_flat);
 
-            let x = image
-                .watch_leaky()
-                .matmul(w1.clone())
-                .add(bias_1.clone())
-                .relu();
-            let x = x.matmul(w2.clone()).add(bias_2.clone()).relu();
-            let x = x.matmul(w3.clone()).add(bias_3.clone());
-            let (x, x_tape) = x.split_tape();
-            let (loss, loss_tape) = x
-                .put_tape(x_tape)
-                .try_cross_entropy(labels)
-                .unwrap()
-                .split_tape();
+            let x = image.watch_leaky();
+            let x = x.matmul(&w1).add(&bias_1).relu();
+            let x = x.matmul(&w2).add(&bias_2).relu();
+            let x = x.matmul(&w3).add(&bias_3);
+            let loss = x.cross_entropy(labels);
 
-            let loss = loss.put_tape(loss_tape);
             if loss.data.read().unwrap()[0].is_nan() {
                 converged = true;
                 break;
@@ -217,11 +207,7 @@ fn test_medium_network() {
 
     actual.data.write().unwrap()[labels[2127] as usize] = 1_f32;
 
-    let mut x: Tensor<Rank1<784>, f32, _> = device.zeros();
-    x.copy_from_slice(&images[2127]);
-
-    let mut cool_picture: Tensor<Rank2<28, 28>, f32, _> = device.zeros();
-    cool_picture.data = Arc::new(RwLock::new(x.data.read().unwrap().to_owned()));
+    let x = device.from_slice(&images[2127], (Const::<784>,));
 
     for x in images[2127].chunks(28) {
         for y in x {
@@ -233,6 +219,7 @@ fn test_medium_network() {
         }
         println!();
     }
+
     let x = x
         .watch_leaky()
         .matmul(w1.clone())

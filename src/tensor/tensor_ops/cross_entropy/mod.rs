@@ -4,6 +4,7 @@ pub mod metal;
 use std::fmt::Debug;
 
 use crate::storage::Storage;
+use crate::tensor::HasErr;
 use crate::{
     dtypes::Unit,
     shape::{ConstDim, Rank0, Shape},
@@ -37,11 +38,22 @@ pub trait CrossEntropyKernel<E: Unit>: Storage<E> {
     ) -> Result<(), Self::Err>;
 }
 
-pub trait TryCrossEntropy<S: Shape, E: Unit, D: CrossEntropyKernel<E>, RTape: Tape<E, D>> {
-    type Err: Debug;
+pub trait TryCrossEntropy<S, E, D, RTape>: HasErr
+where
+    S: Shape,
+    E: Unit,
+    D: CrossEntropyKernel<E>,
+    RTape: Tape<E, D>,
+{
+    type Error: Debug;
     type Output;
 
-    fn try_cross_entropy(self, labels: Tensor<S, E, D, RTape>) -> Result<Self::Output, Self::Err>;
+    fn try_cross_entropy(self, labels: Tensor<S, E, D, RTape>)
+        -> Result<Self::Output, Self::Error>;
+
+    fn cross_entropy(self, labels: Tensor<S, E, D, RTape>) -> Self::Output {
+        self.try_cross_entropy(labels).unwrap()
+    }
 }
 
 impl<X, E, D, T, R> TryCrossEntropy<(X,), E, D, R> for Tensor<(X,), E, D, T>
@@ -53,11 +65,11 @@ where
     R: Tape<E, D>,
     Self: TrySoftmax<E>,
 {
-    type Err = D::Err;
+    type Error = D::Err;
 
     type Output = Tensor<Rank0, E, D, T>;
 
-    fn try_cross_entropy(self, labels: Tensor<(X,), E, D, R>) -> Result<Self::Output, Self::Err> {
+    fn try_cross_entropy(self, labels: Tensor<(X,), E, D, R>) -> Result<Self::Output, Self::Error> {
         let mut out = self.device.zeros();
 
         let (src, src_tape) = self.split_tape();

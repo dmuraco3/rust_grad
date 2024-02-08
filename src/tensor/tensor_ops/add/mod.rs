@@ -6,7 +6,7 @@ use crate::{
     shape::Shape,
     storage::Storage,
     tensor::{
-        tape::{Gradients, Merge, PutTape, SplitTape, Tape, UniqueID},
+        tape::{Gradients, Merge, NoneTape, PutTape, SplitTape, Tape, UniqueID},
         HasErr, Tensor, ZerosTensor,
     },
 };
@@ -29,18 +29,18 @@ pub trait AddKernel<E: Unit>: Storage<E> {
     ) -> Result<(), Self::Err>;
 }
 
-pub trait TryAdd<S: Shape, E: Unit, D: AddKernel<E>, R>: HasErr {
+pub trait TryAdd<Rhs>: HasErr {
     type Error: Debug;
     type Output;
 
-    fn try_add(self, rhs: Tensor<S, E, D, R>) -> Result<Self::Output, Self::Error>;
+    fn try_add(self, rhs: Rhs) -> Result<Self::Output, Self::Error>;
 
-    fn add(self, rhs: Tensor<S, E, D, R>) -> Self::Output {
+    fn add(self, rhs: Rhs) -> Self::Output {
         self.try_add(rhs).unwrap()
     }
 }
 
-impl<S, E, D, T, R> TryAdd<S, E, D, R> for Tensor<S, E, D, T>
+impl<S, E, D, T, R> TryAdd<Tensor<S, E, D, R>> for Tensor<S, E, D, T>
 where
     S: Shape + 'static,
     E: Unit,
@@ -75,5 +75,40 @@ where
         });
 
         Ok(out.put_tape(tape))
+    }
+}
+
+impl<S, E, D, T> TryAdd<&Tensor<S, E, D, NoneTape>> for Tensor<S, E, D, T>
+where
+    S: Shape + 'static,
+    E: Unit,
+    D: AddKernel<E> + ZerosTensor<E>,
+    T: Tape<E, D>,
+{
+    type Error = D::Err;
+
+    type Output = Self;
+
+    fn try_add(self, rhs: &Tensor<S, E, D, NoneTape>) -> Result<Self::Output, Self::Error> {
+        let mut out = self.device.try_zeros_from(&self.shape)?;
+
+        let (lhs, mut lhs_tape) = self.split_tape();
+        let rhs = rhs.clone();
+
+        lhs.device.forward(&lhs, &rhs, &mut out)?;
+
+        let out_id = out.id.clone();
+
+        lhs_tape.add_backward_op(move |grads| {
+            grads.try_alloc_raw(&lhs.device, &lhs.id, lhs.shape.num_elements())?;
+            grads.try_alloc_raw(&rhs.device, &rhs.id, rhs.shape.num_elements())?;
+            grads.try_ones_for((&lhs.device, out_id, lhs.shape.num_elements()))?;
+
+            lhs.device.backward::<S>(grads, &lhs.id, &rhs.id, &out_id)?;
+
+            Ok(())
+        });
+
+        Ok(out.put_tape(lhs_tape))
     }
 }
