@@ -15,8 +15,9 @@ impl<E: FloatUnit> SoftmaxKernel<E> for CPU {
         let mut out_inner = out.data.write().unwrap();
 
         let max = src_inner.iter().fold(E::ZERO, |acc, &x| acc.max(x));
+        let temperature = max;
 
-        let src_inner = src_inner.iter().map(|x| *x / max).collect::<Vec<E>>();
+        let src_inner = src_inner.iter().map(|x| *x / temperature).collect::<Vec<E>>();
 
         let divisor = src_inner.iter().fold(E::ZERO, |acc, &x| acc + x.exp());
 

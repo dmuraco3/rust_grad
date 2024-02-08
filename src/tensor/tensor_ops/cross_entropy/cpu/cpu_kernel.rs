@@ -41,6 +41,7 @@ impl<E: Unit + FloatUnit> CrossEntropyKernel<E> for CPU {
         grads: &mut Gradients<E, Self>,
     ) -> Result<(), Self::Err> {
         let src_data = src.data.read().unwrap();
+        
         let labels_data = labels.data.read().unwrap();
 
         let src_grad = grads.get_grad_mut(&src_id);
