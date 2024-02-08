@@ -3,14 +3,30 @@ pub mod metal;
 
 use std::fmt::{Debug, Display};
 
-use crate::{dtypes::Unit, shape::{Storage, Shape}, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape}}};
+use crate::{
+    dtypes::Unit,
+    shape::Shape,
+    storage::Storage,
+    tensor::{
+        tape::{PutTape, SplitTape, Tape},
+        Tensor, ZerosTensor,
+    },
+};
 
 pub trait SqrtKernel<E: Unit>: Storage<E> {
-    fn forward<S: Shape>(&self, src: &Tensor<S, E, Self>, out: &mut Tensor<S,E,Self>) -> Result<(), Self::Err>;
+    fn forward<S: Shape>(
+        &self,
+        src: &Tensor<S, E, Self>,
+        out: &mut Tensor<S, E, Self>,
+    ) -> Result<(), Self::Err>;
 
-    fn backward<S: Shape>(&self, src: &Tensor<S, E, Self>, src_grad: &mut Self::Vec, out_grad: &Self::Vec) -> Result<(), Self::Err>;
+    fn backward<S: Shape>(
+        &self,
+        src: &Tensor<S, E, Self>,
+        src_grad: &mut Self::Vec,
+        out_grad: &Self::Vec,
+    ) -> Result<(), Self::Err>;
 }
-
 
 pub trait TrySqrt {
     type Output;
@@ -19,17 +35,16 @@ pub trait TrySqrt {
     fn try_sqrt(self) -> Result<Self::Output, Self::Error>;
 }
 
-impl <S, E, D, T> TrySqrt for Tensor<S, E, D, T>
+impl<S, E, D, T> TrySqrt for Tensor<S, E, D, T>
 where
     S: Shape + 'static,
     E: Unit,
     D: SqrtKernel<E> + ZerosTensor<E>,
     T: Tape<E, D>,
-    Tensor<S, E, D>: Display
+    Tensor<S, E, D>: Display,
 {
-
     type Output = Self;
-    
+
     type Error = D::Err;
 
     fn try_sqrt(self) -> Result<Tensor<S, E, D, T>, Self::Error> {
@@ -49,7 +64,6 @@ where
             let out_grad = grads.get_grad_ref(&out_d.0).clone();
 
             let mut src_grad = grads.get_grad_mut(&lhs.id);
-            
 
             lhs.device.backward(&lhs, &mut src_grad, &out_grad)?;
 
@@ -57,6 +71,5 @@ where
         });
 
         Ok(out.put_tape(lhs_tape))
-
     }
 }

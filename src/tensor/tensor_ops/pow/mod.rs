@@ -3,7 +3,7 @@ pub mod metal_kernel;
 
 use std::fmt::{Debug, Display};
 
-use crate::{dtypes::Unit, shape::{Storage, Shape}, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape}}};
+use crate::{dtypes::Unit, storage::Storage, shape::Shape, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape}}};
 
 pub trait PowKernel<E: Unit>: Storage<E> {
     fn forward<S: Shape>(&self, src: &Tensor<S, E, Self>, out:&mut Tensor<S,E,Self>, exponent: u32) -> Result<(), Self::Err>;

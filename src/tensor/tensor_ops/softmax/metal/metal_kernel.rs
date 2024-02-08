@@ -1,12 +1,12 @@
 use std::{time::Instant, mem::size_of};
 
-use metal::{objc::rc::autoreleasepool, ComputePipelineState, MTLResourceOptions};
+use metal::{objc::rc::autoreleasepool, MTLResourceOptions};
 
 use crate::{
-    devices::metal::{MetalGPU, MetalVec, MetalState},
-    dtypes::{FloatUnit, Unit},
-    shape::{Rank0, Shape, Rank1},
-    tensor::{tape::{self, UniqueID, Gradients}, tensor_ops::{cross_entropy::CrossEntropyKernel, softmax::SoftmaxKernel}, Tensor, ZerosTensor},
+    devices::metal::{MetalGPU, MetalState},
+    dtypes::FloatUnit,
+    shape::Shape,
+    tensor::{tape::{UniqueID, Gradients}, tensor_ops::softmax::SoftmaxKernel, Tensor},
 };
 
 const LIB_DATA: &[u8] = include_bytes!("softmax.metallib");
@@ -61,6 +61,7 @@ impl<E: FloatUnit> SoftmaxKernel<E> for MetalGPU {
         Ok(())
     }
 
+    #[allow(unused_variables)]
     fn backward<S: Shape>(
         &self,
         out_id: &UniqueID,

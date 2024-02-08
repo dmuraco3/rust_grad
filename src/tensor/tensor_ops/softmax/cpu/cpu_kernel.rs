@@ -14,7 +14,13 @@ impl<E: FloatUnit> SoftmaxKernel<E> for CPU {
         let src_inner = src.data.read().unwrap();
         let mut out_inner = out.data.write().unwrap();
 
+
+        let max = src_inner.iter().fold(E::ZERO, |acc, &x| acc.max(x));
+
+        let src_inner = src_inner.iter().map(|x| *x / max).collect::<Vec<E>>();
+
         let divisor = src_inner.iter().fold(E::ZERO, |acc, &x| acc + x.exp());
+
 
         src_inner
             .iter()
@@ -26,6 +32,7 @@ impl<E: FloatUnit> SoftmaxKernel<E> for CPU {
         Ok(())
     }
 
+    #[allow(unused_variables)]
     fn backward<S: Shape>(
         &self,
         out_id: &crate::tensor::tape::UniqueID,

@@ -1,6 +1,4 @@
-use std::time::Instant;
-
-use rust_grad::{devices::{cpu::CPU, metal::MetalGPU}, tensor::{Tensor, ZerosTensor, tensor_ops::{cross_entropy::TryCrossEntropy, softmax::TrySoftmax}, RandTensor}, shape::Rank1};
+use rust_grad::{devices::{cpu::CPU, metal::MetalGPU}, tensor::{Tensor, ZerosTensor, tensor_ops::softmax::TrySoftmax, RandTensor}, shape::Rank1};
 
 fn main() {
     let cpu = CPU::default();

@@ -28,13 +28,24 @@ impl<E: Unit> AddKernel<E> for MetalGPU {
         rhs: &Tensor<S, E, Self>,
         out: &mut Tensor<S, E, Self>,
     ) -> Result<(), Self::Err> {
+
+        let shape = lhs.shape.clone();
+
+        let mut shape_iter = shape.concrete().into_iter();
+
+        let shape = (
+            shape_iter.next().unwrap_or(1),
+            shape_iter.next().unwrap_or(1),
+            shape_iter.next().unwrap_or(1),
+        );
+
         let buffers = &[
             &lhs.data.read().unwrap().buf,
             &rhs.data.read().unwrap().buf,
             &out.data.write().unwrap().buf,
         ];
 
-        self.call_kernel(LIB_DATA, SHADER_NAME, buffers, lhs.shape)
+        self.call_kernel(LIB_DATA, SHADER_NAME, buffers, shape)
     }
 
     fn backward<S: crate::shape::Shape>(
@@ -60,6 +71,6 @@ impl<E: Unit> AddKernel<E> for MetalGPU {
             right_grad_buf,
         ];
 
-        self.call_kernel(LIB_DATA, SHADER_BACKWARD_NAME, buffers, (out_grad.len,))
+        self.call_kernel(LIB_DATA, SHADER_BACKWARD_NAME, buffers, (out_grad.len, 1, 1))
     }
 }

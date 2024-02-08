@@ -2,7 +2,7 @@ pub mod metal_kernel;
 
 #[cfg(test)]
 mod tests {
-    use crate::{devices::{metal::MetalGPU, cpu::CPU}, tensor::{RandTensor, Tensor, tensor_ops::cross_entropy::TryCrossEntropy, ZerosTensor}, shape::Rank1};
+    use crate::{devices::{metal::MetalGPU, cpu::CPU}, tensor::{Tensor, tensor_ops::cross_entropy::TryCrossEntropy, ZerosTensor}, shape::Rank1};
 
     #[test]
     fn test_cross_entropy_metal() {

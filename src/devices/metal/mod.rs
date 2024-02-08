@@ -18,7 +18,8 @@ use rand::{
 
 use crate::{
     dtypes::Unit,
-    shape::{HasShape, Rank1, Shape, Storage},
+    shape::{HasShape, Rank1, Rank2, Shape},
+    storage::Storage,
     tensor::{
         tape::{unique_id, NoneTape},
         HasErr, RandTensor, Tensor, ZerosTensor,
@@ -46,6 +47,22 @@ impl MetalGPU {
 
         for (idx, ele) in src.iter().enumerate() {
             *tensor_inner.index_mut(idx) = *ele;
+        }
+
+        drop(tensor_inner);
+
+        tensor
+    }
+
+    pub fn from_2d_array<const Y: usize, const X: usize, E: Unit>(&self, src: [[E; X]; Y]) -> Tensor<Rank2<X, Y>, E, Self> {
+        let mut tensor: Tensor<Rank2<X, Y>, E, MetalGPU> = self.zeros();
+
+        let mut tensor_inner = tensor.borrow_mut().data.write().unwrap();
+
+        for (y, row) in src.iter().enumerate() {
+            for (x, ele) in row.iter().enumerate() {
+                *tensor_inner.index_mut(y * X + x) = *ele;
+            }
         }
 
         drop(tensor_inner);
@@ -214,6 +231,7 @@ impl<E: Unit> Storage<E> for MetalGPU {
     }
 
     fn num_el(&self, st: Self::Vec) -> usize {
+        let _t = st.len;
         todo!()
     }
 }
@@ -231,7 +249,7 @@ impl Display for MetalGpuError {
 
 impl HasErr for MetalGPU {
     type Err = MetalGpuError;
-    const Err: Self::Err = MetalGpuError::SmallProblem;
+    const ERR: Self::Err = MetalGpuError::SmallProblem;
 }
 
 impl<E: Unit> ZerosTensor<E> for MetalGPU {
@@ -271,7 +289,7 @@ impl<E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
         Standard: Distribution<E>,
     {
         let shape = *src.shape();
-        let mut out: Tensor<S::Shape, E, MetalGPU> = self.try_zeros_from(&shape).unwrap();
+        let out: Tensor<S::Shape, E, MetalGPU> = self.try_zeros_from(&shape).unwrap();
 
         let mut out_buf = out.data.write().unwrap();
 
@@ -335,12 +353,12 @@ impl MetalState {
 }
 
 impl MetalGPU {
-    pub fn call_kernel<S: Shape>(
+    pub fn call_kernel(
         &self,
         library_data: &[u8],
         shader_name: &str,
         buffers: &[&Buffer],
-        shape: S,
+        shape: (usize, usize, usize),
     ) -> Result<(), <MetalGPU as HasErr>::Err> {
         let device = &self.device;
 
@@ -357,9 +375,14 @@ impl MetalGPU {
             }
 
             let w = state.pipeline.thread_execution_width();
+            let h = if shape.1 == 1 {
+                1
+            } else {
+                state.pipeline.max_total_threads_per_threadgroup() / w
+            };
             
-            let grid_size = metal::MTLSize::new(shape.num_elements() as u64, 1, 1);
-            let threadgroup_size = metal::MTLSize::new(w, 1, 1);
+            let grid_size = metal::MTLSize::new(shape.0 as u64, shape.1 as u64, shape.2 as u64);
+            let threadgroup_size = metal::MTLSize::new(w, h, 1);
 
             compute_encoder.dispatch_threads(grid_size, threadgroup_size);
 

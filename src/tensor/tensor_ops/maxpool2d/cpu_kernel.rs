@@ -1,4 +1,4 @@
-use std::{ops::{Index, IndexMut}, sync::RwLockReadGuard};
+use std::ops::{Index, IndexMut};
 
 use crate::{dtypes::Unit, devices::cpu::CPU, shape::Dim};
 

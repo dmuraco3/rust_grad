@@ -1,14 +1,31 @@
 pub mod cpu;
 pub mod metal;
 
-use std::{fmt::Debug, vec};
+use std::fmt::Debug;
 
-use crate::{dtypes::Unit, shape::{Storage, Shape}, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape}, HasErr}};
+use crate::{
+    dtypes::Unit,
+    shape::Shape,
+    storage::Storage,
+    tensor::{
+        tape::{PutTape, SplitTape, Tape},
+        HasErr, Tensor, ZerosTensor,
+    },
+};
 
 pub trait ReLUKernel<E: Unit>: Storage<E> {
-    fn forward<S: Shape>(&self, src: &Tensor<S, E, Self>, out:&mut Tensor<S,E,Self>) -> Result<(), Self::Err>;
+    fn forward<S: Shape>(
+        &self,
+        src: &Tensor<S, E, Self>,
+        out: &mut Tensor<S, E, Self>,
+    ) -> Result<(), Self::Err>;
 
-    fn backward<S: Shape>(&self, out: &Tensor<S, E, Self>, src_grad: &mut Self::Vec, out_grad: &Self::Vec) -> Result<(), Self::Err>;
+    fn backward<S: Shape>(
+        &self,
+        out: &Tensor<S, E, Self>,
+        src_grad: &mut Self::Vec,
+        out_grad: &Self::Vec,
+    ) -> Result<(), Self::Err>;
 }
 
 pub trait TryReLU<S: Shape, E: Unit, D: ReLUKernel<E>, T>: HasErr {
@@ -21,24 +38,23 @@ pub trait TryReLU<S: Shape, E: Unit, D: ReLUKernel<E>, T>: HasErr {
     }
 
     fn try_relu(self) -> Result<Self::Output, Self::Error>;
-
 }
 
-impl <S, E, D, T> TryReLU<S,E,D,T> for Tensor<S, E, D, T>
+impl<S, E, D, T> TryReLU<S, E, D, T> for Tensor<S, E, D, T>
 where
     S: Shape + 'static,
     E: Unit,
     D: ReLUKernel<E> + ZerosTensor<E>,
-    T: Tape<E, D>
+    T: Tape<E, D>,
 {
     type Error = D::Err;
     type Output = Tensor<S, E, D, T>;
 
     fn try_relu(self) -> Result<Tensor<S, E, D, T>, Self::Error> {
         let mut out = self.device.try_zeros_from(&self.shape).unwrap();
-        
+
         let (lhs, mut lhs_tape) = self.split_tape();
-        
+
         lhs.device.forward::<S>(&lhs, &mut out)?;
 
         let out_d = (out.id.clone(), out.shape.num_elements());
@@ -57,9 +73,7 @@ where
 
             Ok(())
         });
-        
 
         Ok(out.put_tape(lhs_tape))
-
     }
 }

@@ -1,40 +1,45 @@
-use core::num;
-use std::{fmt::{Debug, Display}, ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign}};
+use std::{
+    fmt::{Debug, Display},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+};
 
-pub trait Unit: 
-'static
-+ Debug
-+ Default
-+ Copy
-+ Clone
-+ Add<Self, Output = Self>
-+ AddAssign<Self>
-+ Sub<Output = Self>
-+ SubAssign<Self>
-+ Mul<Output = Self>
-+ MulAssign<Self>
-+ Div<Output = Self>
-+ PartialOrd<Self>
-+ PartialEq<Self>
-+ Neg<Output = Self>
-+ num_traits::Pow<u16, Output=Self>
-+ Display
+pub trait Unit:
+    'static
+    + Debug
+    + Default
+    + Copy
+    + Clone
+    + Add<Self, Output = Self>
+    + AddAssign<Self>
+    + Sub<Output = Self>
+    + SubAssign<Self>
+    + Mul<Output = Self>
+    + MulAssign<Self>
+    + Div<Output = Self>
+    + DivAssign<Self>
+    + PartialOrd<Self>
+    + PartialEq<Self>
+    + Neg<Output = Self>
+    + num_traits::Pow<u16, Output = Self>
+    + Display
 {
     const ONE: Self;
     const ZERO: Self;
 
     fn max(self, rhs: Self) -> Self {
         if self > rhs {
-            return self
+            return self;
         } else {
-            return rhs
+            return rhs;
         }
     }
 
     fn min(self, rhs: Self) -> Self {
         if self < rhs {
-            return self
-        } else {return rhs}
+            return self;
+        } else {
+            return rhs;
+        }
     }
 
     // fn pow(self, exponent: u32) -> Self {
@@ -57,7 +62,7 @@ pub trait FloatUnit: Unit {
 
     fn exp(self) -> Self;
     fn ln(self) -> Self;
-    
+
     fn log_10(self) -> Self;
 
     fn sqrt(self) -> Self;
@@ -65,16 +70,16 @@ pub trait FloatUnit: Unit {
     fn from_f32(src: f32) -> Self;
     fn from_f64(src: f64) -> Self;
 
+    fn is_nan(self) -> bool;
 }
 
 macro_rules! craft_unit {
     ($rust_type: ty, $one: expr, $zero: expr) => {
-
         impl Unit for $rust_type {
             const ONE: Self = $one;
             const ZERO: Self = $zero;
 
-            fn from_u32(src:u32) -> $rust_type {
+            fn from_u32(src: u32) -> $rust_type {
                 src as $rust_type
             }
             fn from_usize(src: usize) -> $rust_type {
@@ -85,10 +90,8 @@ macro_rules! craft_unit {
                 self.abs()
             }
         }
-
     };
 }
-
 
 craft_unit!(f32, 1.0_f32, 0.0_f32);
 craft_unit!(f64, 1.0_f64, 0.0_f64);
@@ -102,7 +105,7 @@ impl FloatUnit for f32 {
     fn ln(self) -> Self {
         self.ln()
     }
-    
+
     fn log_10(self) -> Self {
         self.log10()
     }
@@ -112,12 +115,16 @@ impl FloatUnit for f32 {
     }
 
     fn from_f32(src: f32) -> Self {
-        return src as Self
+        return src as Self;
     }
+
     fn from_f64(src: f64) -> Self {
-        return src as Self
+        return src as Self;
     }
-    
+
+    fn is_nan(self) -> bool {
+        self.is_nan()
+    }
 }
 
 impl FloatUnit for f64 {
@@ -138,10 +145,13 @@ impl FloatUnit for f64 {
     }
 
     fn from_f32(src: f32) -> Self {
-        return src as Self
+        return src as Self;
     }
     fn from_f64(src: f64) -> Self {
-        return src as Self
+        return src as Self;
     }
 
+    fn is_nan(self) -> bool {
+        self.is_nan()
+    }
 }

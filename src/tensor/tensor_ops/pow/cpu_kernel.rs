@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use crate::{dtypes::Unit, devices::cpu::CPU, shape::Shape, tensor::Tensor};
 
 use super::PowKernel;

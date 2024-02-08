@@ -1,6 +1,6 @@
 use std::sync::RwLockReadGuard;
 
-use crate::{dtypes::Unit, devices::cpu::CPU, shape::{Dim, Storage, Shape}, tensor::{ZerosTensor, Tensor, tape::Gradients}};
+use crate::{devices::cpu::CPU, dtypes::Unit, shape::{Dim, Shape}, storage::Storage, tensor::{tape::Gradients, Tensor, ZerosTensor}};
 
 use crate::tensor::tensor_ops::matmul::{MatMatKernel, MatVecKernel};
 
@@ -188,7 +188,7 @@ where
     Self: MatVecImpl<E>
 {
     fn forward<I: Dim, J: Dim>(
-        &self,
+        &self,  
         lhs: &Tensor<(I, J), E, Self>,
         rhs: &Tensor<(J, ), E, Self>,
     ) -> Result<crate::tensor::Tensor<(I,), E, Self>, Self::Err> {

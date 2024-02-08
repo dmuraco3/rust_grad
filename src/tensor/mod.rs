@@ -11,7 +11,8 @@ use rand::{distributions::Standard, prelude::Distribution};
 
 use crate::{
     dtypes::{FloatUnit, Unit},
-    shape::{Const, ConstDim, ConstShape, Dim, HasShape, Rank1, Rank2, Shape, Storage},
+    shape::{Const, ConstShape, Dim, HasShape, Rank1, Rank2, Shape},
+    storage::Storage,
 };
 
 use self::tape::{NoneTape, OwnedTape, PutTape, Tape, UniqueID};
@@ -65,8 +66,6 @@ where
         }
         return true;
     }
-
-    
 }
 
 impl<S, E, D> Tensor<S, E, D>
@@ -93,8 +92,8 @@ where
         }
     }
 
-    pub fn flatten(self) -> Result<Tensor<(usize, ), E, D>, String> {
-        let new_shape = (self.shape.num_elements(), );
+    pub fn flatten(self) -> Result<Tensor<(usize,), E, D>, String> {
+        let new_shape = (self.shape.num_elements(),);
         self.reshape(new_shape)
     }
 
@@ -111,7 +110,6 @@ where
         sum
     }
 }
-
 
 impl<S, E, D, T> PartialEq for Tensor<S, E, D, T>
 where
@@ -155,7 +153,7 @@ impl<E: Unit, D: Storage<E>, S: Shape> Watch<E, D> for Tensor<S, E, D> {
 pub trait HasErr: Sized {
     type Err: Debug + Display;
 
-    const Err: Self::Err;
+    const ERR: Self::Err;
 }
 
 pub trait ZerosTensor<E: Unit>: Storage<E> + HasErr {
@@ -234,7 +232,7 @@ impl<const X: usize, E: Unit + Copy, D: ZerosTensor<E>> Tensor<Rank1<X>, E, D> {
 impl<S: Shape, E: Unit, D: Storage<E>, T: Tape<E, D>> HasErr for Tensor<S, E, D, T> {
     type Err = D::Err;
 
-    const Err: Self::Err = D::Err;
+    const ERR: Self::Err = D::ERR;
 }
 
 impl<S: Shape, E: Unit, D: Storage<E>> HasShape for Tensor<S, E, D> {

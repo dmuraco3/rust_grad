@@ -24,7 +24,7 @@ impl<E: Unit + FloatUnit> CrossEntropyKernel<E> for CPU {
             .iter()
             .zip(labels_data.iter())
             .fold(E::ZERO, |acc, (src_ele, label)| {
-                acc + (*label * src_ele.ln())
+                acc + (*label * (*src_ele).ln())
             });
 
         out_data[0] *= -E::ONE;
@@ -37,7 +37,7 @@ impl<E: Unit + FloatUnit> CrossEntropyKernel<E> for CPU {
         src: &Tensor<S, E, Self>,
         labels: &Tensor<S, E, Self>,
         src_id: UniqueID,
-        out_id: UniqueID,
+        _out_id: UniqueID,
         grads: &mut Gradients<E, Self>,
     ) -> Result<(), Self::Err> {
         let src_data = src.data.read().unwrap();

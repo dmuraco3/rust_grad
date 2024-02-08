@@ -1,8 +1,8 @@
-use std::{sync::{atomic::AtomicUsize, Arc, RwLock}, collections::{BTreeMap, BTreeSet, btree_map::Entry::{Occupied, Vacant}}};
+use std::{sync::{atomic::AtomicUsize, Arc, RwLock}, collections::{BTreeMap, btree_map::Entry::Vacant}};
 
-use crate::{shape::{Storage, Shape}, dtypes::Unit};
+use crate::{shape::Shape, dtypes::Unit, storage::Storage};
 
-use super::{Tensor, ZerosTensor, HasErr};
+use super::{Tensor, HasErr};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub struct UniqueID(pub usize);
@@ -60,7 +60,7 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
 
     pub fn get<S: Shape, T>(&self, tensor: &Tensor<S, E, D, T>) -> Result<Tensor<S, E, D>, D::Err> {
         match self.gradient_by_id.get(&tensor.id) {
-            None => Err(<D as HasErr>::Err),
+            None => Err(<D as HasErr>::ERR),
             Some(entry) => Ok(Tensor {
                 id: tensor.id,
                 shape: tensor.shape,
@@ -104,7 +104,7 @@ pub trait Merge<T: ?Sized> {
 }
 
 impl Merge<Self> for NoneTape {
-    fn merge(self, other: Self) -> Self {
+    fn merge(self, _other: Self) -> Self {
         self
     }
 }
@@ -151,9 +151,13 @@ impl <E: Unit, D: Storage<E>> Tape<E,D> for OwnedTape<E, D> {
 impl <E, D: Storage<E>> Tape<E, D> for NoneTape {
     const OWNS_TAPE: bool = false;
 
-    fn add_backward_op<F>(&mut self, operation: F)
+    fn add_backward_op<F>(&mut self, _operation: F)
     where 
         F: 'static + FnOnce(&mut Gradients<E, D>) -> Result<(), <D>::Err> {
+            #[cfg(debug_assertions)]
+            {
+                println!("Cannot Add Backward Op to NoneTape");
+            }
     }
     
 }

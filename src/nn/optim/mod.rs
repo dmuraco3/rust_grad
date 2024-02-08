@@ -1,14 +1,9 @@
-use std::{
-    borrow::BorrowMut, default, ops::AddAssign, sync::{atomic::AtomicUsize, Arc, RwLock}, time::{Duration, Instant}
-};
 
 use crate::{
-    devices::cpu::CPU,
     dtypes::FloatUnit,
-    shape::{HasShape, Shape, Storage, TensorInnerLength},
+    storage::Storage,
     tensor::{
-        tape::{Gradients, UniqueID},
-        Tensor, TensorLike, ZerosTensor, tensor_ops::{pow::{TryPow, PowKernel}, sqrt::{SqrtKernel, TrySqrt}},
+        tape::Gradients, tensor_ops::{pow::{PowKernel, TryPow}, sqrt::{SqrtKernel, TrySqrt}}, Tensor, ZerosTensor
     },
 };
 
@@ -80,7 +75,7 @@ impl<E: FloatUnit, D: Storage<E> + ZerosTensor<E> + PowKernel<E> + SqrtKernel<E>
         let step_size = self.config.step_size;
         let epsilon = self.config.epsilon;
 
-        for (weights, (mut moment1, mut moment2)) in self
+        for (weights, (moment1, moment2)) in self
             .trainable
             .iter_mut()
             .zip(self.moment1.iter_mut().zip(self.moment2.iter_mut()))

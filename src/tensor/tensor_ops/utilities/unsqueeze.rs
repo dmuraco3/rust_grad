@@ -1,11 +1,28 @@
 use std::fmt::Debug;
 
-use crate::{dtypes::Unit, shape::{Storage, Shape}, tensor::{Tensor, tape::{Gradients, UniqueID}, HasErr}};
+use crate::{
+    dtypes::Unit,
+    shape::Shape,
+    storage::Storage,
+    tensor::{
+        tape::{Gradients, UniqueID},
+        HasErr, Tensor,
+    },
+};
 
-pub trait ReshapeKernel <E: Unit>: Storage<E> {
-    fn forward<OS: Shape, NS: Shape>(&self, lhs: &Tensor<OS, E, Self>, out: &mut Tensor<NS, E, Self>) -> Result<(), Self::Err>;
+pub trait ReshapeKernel<E: Unit>: Storage<E> {
+    fn forward<OS: Shape, NS: Shape>(
+        &self,
+        lhs: &Tensor<OS, E, Self>,
+        out: &mut Tensor<NS, E, Self>,
+    ) -> Result<(), Self::Err>;
 
-    fn backward<OS: Shape, NS: Shape>(&self, grads: &mut Gradients<E, Self>, lhs_id: &UniqueID, out_id: &UniqueID) -> Result<(), Self::Err>;
+    fn backward<OS: Shape, NS: Shape>(
+        &self,
+        grads: &mut Gradients<E, Self>,
+        lhs_id: &UniqueID,
+        out_id: &UniqueID,
+    ) -> Result<(), Self::Err>;
 }
 
 pub trait TryReshape<S: Shape, E: Unit, D: ReshapeKernel<E>>: HasErr {
@@ -19,19 +36,18 @@ pub trait TryReshape<S: Shape, E: Unit, D: ReshapeKernel<E>>: HasErr {
     }
 }
 
-impl <OS, NS, E, D> TryReshape <NS, E, D> for Tensor<OS, E, D>
+impl<OS, NS, E, D> TryReshape<NS, E, D> for Tensor<OS, E, D>
 where
     OS: Shape,
     NS: Shape,
-    E: Unit, 
-    D: ReshapeKernel<E>
-
+    E: Unit,
+    D: ReshapeKernel<E>,
 {
     type Error = D::Err;
 
     type Output = Tensor<NS, E, D>;
 
-    fn try_reshape(self, shape: NS) -> Result<Self::Output, Self::Error> {
+    fn try_reshape(self, _shape: NS) -> Result<Self::Output, Self::Error> {
         todo!()
     }
 }

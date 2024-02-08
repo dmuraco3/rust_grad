@@ -1,4 +1,4 @@
-use crate::{dtypes::{Unit, FloatUnit}, devices::cpu::CPU, shape::Shape, tensor::{Tensor, tape::Gradients}};
+use crate::{dtypes::FloatUnit, devices::cpu::CPU, shape::Shape, tensor::{Tensor, tape::Gradients}};
 
 use super::SCCEKernel;
 
@@ -17,7 +17,7 @@ impl <E: FloatUnit> SCCEKernel<E> for CPU {
         &self,
         src: &Tensor<S, E, Self>,
         actual: &Tensor<S, E, Self>,
-        out_grad: &Self::Vec,
+        _out_grad: &Self::Vec,
         grads: &mut Gradients<E, Self>,
     ) -> Result<(), Self::Err> {
         // out = src - actual

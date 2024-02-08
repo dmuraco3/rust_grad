@@ -1,14 +1,14 @@
 use std::{mem::size_of, sync::Arc, time::Instant};
 
-use metal::{objc::rc::autoreleasepool, ComputePipelineState, MTLResourceOptions};
+use metal::{objc::rc::autoreleasepool, MTLResourceOptions};
 
 use crate::{
-    devices::metal::{MetalGPU, MetalState},
-    dtypes::{FloatUnit, Unit},
+    devices::metal::MetalGPU,
+    dtypes::FloatUnit,
     shape::{Rank0, Shape},
     tensor::{
         tape,
-        tensor_ops::cross_entropy::{self, CrossEntropyKernel},
+        tensor_ops::cross_entropy::CrossEntropyKernel,
         Tensor,
     },
 };
@@ -118,6 +118,8 @@ impl<E: FloatUnit> CrossEntropyKernel<E> for MetalGPU {
             let start = Instant::now();
             command_buffer.wait_until_completed();
             let elapsed = start.elapsed();
+            
+            #[cfg(debug_assertions)]
             println!("time to do cross_entropy on GPU: {:?}", elapsed);
         });
 
@@ -129,9 +131,17 @@ impl<E: FloatUnit> CrossEntropyKernel<E> for MetalGPU {
         src: &Tensor<S, E, Self>,
         labels: &Tensor<S, E, Self>,
         src_id: tape::UniqueID,
-        out_id: tape::UniqueID,
+        _out_id: tape::UniqueID,
         grads: &mut tape::Gradients<E, Self>,
     ) -> Result<(), Self::Err> {
+        let shape = src.shape.clone();
+        let mut shape_iter = shape.concrete().into_iter();
+        let shape = (
+            shape_iter.next().unwrap_or(1),
+            shape_iter.next().unwrap_or(1),
+            shape_iter.next().unwrap_or(1),
+        );
+
         let src_arc = Arc::clone(&src.data);
         let src_data = src_arc.read().unwrap();
 
@@ -146,17 +156,11 @@ impl<E: FloatUnit> CrossEntropyKernel<E> for MetalGPU {
         let src_grad_buffer = &src_grad.buf;
         // let out_grad_buffer = &out_grad.buf;
 
-        autoreleasepool(|| {
-            self.call_kernel(
-                CROSS_ENTROPY_LIB_DATA,
-                CROSS_ENTROPY_BACKWARD_SHADER_NAME,
-                &[
-                    src_buffer,
-                    labels_buffer,
-                    src_grad_buffer,
-                ],
-                src.shape.clone(),
-            )
-        })
+        self.call_kernel(
+            CROSS_ENTROPY_LIB_DATA,
+            CROSS_ENTROPY_BACKWARD_SHADER_NAME,
+            &[src_buffer, labels_buffer, src_grad_buffer],
+            shape,
+        )
     }
 }

@@ -1,8 +1,8 @@
-use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, time::Instant, ops::IndexMut, mem::{size_of_val, size_of}};
+use std::{fs, io::{self, Read}, sync::{Arc, RwLock}, time::Instant};
 use colored::Colorize;
 
 use rand::Rng;
-use rust_grad::{devices::{cpu::CPU, metal::MetalGPU}, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::TryMatMul, relu::TryReLU, cross_entropy::TryCrossEntropy, utilities::backward::BackwardPropagate, softmax::TrySoftmax, add::TryAdd}, Watch, tape::{SplitTape, PutTape}, RandTensor}, shape::{Rank2, Const, Rank1, Shape}, nn::optim::ADAM};
+use rust_grad::{devices::cpu::CPU, tensor::{ZerosTensor, Tensor, tensor_ops::{matmul::TryMatMul, relu::TryReLU, cross_entropy::TryCrossEntropy, utilities::backward::BackwardPropagate, softmax::TrySoftmax, add::TryAdd}, Watch, tape::{SplitTape, PutTape}, RandTensor}, shape::{Rank2, Const, Rank1}, nn::optim::ADAM};
 
 // use rust_grad::{
 //     tensor::{
@@ -84,7 +84,7 @@ fn test_medium_network() {
 
     
 
-    let device = MetalGPU::default();
+    let device = CPU::default();
 
     let b1: f32 = (6_f32 / (L1+L2)).sqrt();
     let b2: f32 = (6_f32 / (L2+L3)).sqrt();
@@ -115,7 +115,7 @@ fn test_medium_network() {
 
     let start = Instant::now();
 
-    for i_step in 0..STEPS {
+    for _i_step in 0..STEPS {
         let mut rng = rand::thread_rng();
         // let distribution: Tensor<(Const<BATCHSIZE>,), i32, _> = device.fill_rand_range(0..images.len() as i32);
         let mut x: Vec<[f32;784]> = Vec::new();
@@ -128,17 +128,20 @@ fn test_medium_network() {
         }
         
         // Forward pass of the network
-        for (batch, (image_flat, label_index)) in x.iter().zip(y.iter()).enumerate() {
+        for (_batch, (image_flat, label_index)) in x.iter().zip(y.iter()).enumerate() {
             let labels: Tensor<Rank1<10>, f32, _> = device.zeros();
             labels.data.write().unwrap()[*label_index as usize] = 1_f32;
             let mut image: Tensor<Rank1<784>, f32, _> = device.zeros();
+            // let mut image = device.from_slice();
             image.copy_from_slice(image_flat); 
 
             let x = image.watch_leaky().matmul(w1.clone()).add(bias_1.clone()).relu();
             let x = x.matmul(w2.clone()).add(bias_2.clone()).relu();
             let x = x.matmul(w3.clone()).add(bias_3.clone());
-            let loss = x.try_cross_entropy(labels).unwrap();
-    
+            let (x, x_tape) = x.split_tape();
+            let (loss, loss_tape) = x.put_tape(x_tape).try_cross_entropy(labels).unwrap().split_tape();
+
+            let loss = loss.put_tape(loss_tape);    
             if loss.data.read().unwrap()[0].is_nan() {converged = true;break;} 
 
             losses.push(loss.data.read().unwrap()[0]);
@@ -239,8 +242,4 @@ fn main() {
     // test_medium_network();
 
     test_medium_network();
-
-
-
-
 }

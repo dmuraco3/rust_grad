@@ -1,10 +1,11 @@
-use std::{fmt::{Debug, Display, format}, sync::{Arc, RwLock}, ops::Range};
+use std::{fmt::Display, sync::{Arc, RwLock}, ops::Range};
 
 use rand::{Rng, distributions::{Standard, uniform::SampleUniform, Uniform}, prelude::Distribution, rngs::StdRng, SeedableRng};
 
 use crate::{
-    shape::{Shape, Storage, HasShape, Rank2, Dim, Const, Rank1},
-    tensor::{ZerosTensor, Tensor, HasErr, RandTensor, tape::{unique_id, OwnedTape, Tape, NoneTape, UniqueID}, Arange},
+    shape::{Shape, HasShape, Rank2, Dim, Const, Rank1},
+    storage::Storage,
+    tensor::{ZerosTensor, Tensor, HasErr, RandTensor, tape::{unique_id, Tape, NoneTape}, Arange},
     dtypes::Unit
 };
 
@@ -49,7 +50,7 @@ impl Display for CpuError {
 
 impl HasErr for CPU {
     type Err = CpuError;
-    const Err: Self::Err = CpuError::SmallProblem;
+    const ERR: Self::Err = CpuError::SmallProblem;
 }
 
 impl <E: Unit> ZerosTensor<E> for CPU {

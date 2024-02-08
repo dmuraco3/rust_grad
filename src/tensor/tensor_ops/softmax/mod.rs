@@ -5,7 +5,8 @@ use std::fmt::Debug;
 
 use crate::{
     dtypes::Unit,
-    shape::{Dim, Shape, Storage},
+    shape::{Dim, Shape},
+    storage::Storage,
     tensor::{
         tape::{PutTape, SplitTape, Tape, UniqueID, Gradients},
         HasErr, Tensor, ZerosTensor,
