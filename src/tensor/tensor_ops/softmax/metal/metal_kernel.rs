@@ -1,4 +1,4 @@
-use std::{time::Instant, mem::size_of};
+use std::{mem::size_of, time::Instant};
 
 use metal::{objc::rc::autoreleasepool, MTLResourceOptions};
 
@@ -6,13 +6,16 @@ use crate::{
     devices::metal::{MetalGPU, MetalState},
     dtypes::FloatUnit,
     shape::Shape,
-    tensor::{tape::{UniqueID, Gradients}, tensor_ops::softmax::SoftmaxKernel, Tensor},
+    tensor::{
+        tape::{Gradients, UniqueID},
+        tensor_ops::softmax::SoftmaxKernel,
+        Tensor,
+    },
 };
 
 const LIB_DATA: &[u8] = include_bytes!("softmax.metallib");
 
 const SHADER_NAME: &str = "softmax";
-
 
 impl<E: FloatUnit> SoftmaxKernel<E> for MetalGPU {
     fn forward<S: Shape>(
@@ -25,7 +28,10 @@ impl<E: FloatUnit> SoftmaxKernel<E> for MetalGPU {
         let src_buffer = &src.data.read().unwrap().buf;
         let out_buffer = &out.data.write().unwrap().buf;
 
-        let exp_sum_buffer = src.device.device.new_buffer(size_of::<E>() as u64, MTLResourceOptions::StorageModeShared);
+        let exp_sum_buffer = src
+            .device
+            .device
+            .new_buffer(size_of::<E>() as u64, MTLResourceOptions::StorageModeShared);
 
         autoreleasepool(|| {
             let state = MetalState::new_with_shader(&self.device, LIB_DATA, SHADER_NAME);
@@ -54,8 +60,6 @@ impl<E: FloatUnit> SoftmaxKernel<E> for MetalGPU {
             let elapsed = start.elapsed();
 
             println!("done doing softmax on da GPU! time taken: {:?}", elapsed);
-
-            
         });
 
         Ok(())

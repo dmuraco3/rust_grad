@@ -1,9 +1,13 @@
-
 use crate::{
     dtypes::FloatUnit,
     storage::Storage,
     tensor::{
-        tape::Gradients, tensor_ops::{pow::{PowKernel, TryPow}, sqrt::{SqrtKernel, TrySqrt}}, Tensor, ZerosTensor
+        tape::Gradients,
+        tensor_ops::{
+            pow::{PowKernel, TryPow},
+            sqrt::{SqrtKernel, TrySqrt},
+        },
+        Tensor, ZerosTensor,
     },
 };
 
@@ -92,7 +96,7 @@ impl<E: FloatUnit, D: Storage<E> + ZerosTensor<E> + PowKernel<E> + SqrtKernel<E>
             let mut moment2_hat = moment2 / (E::ONE - b2.pow(self.t as u16));
 
             let _ = moment2_hat.clone().try_sqrt();
-            
+
             moment2_hat += epsilon;
 
             moment1_hat *= step_size;

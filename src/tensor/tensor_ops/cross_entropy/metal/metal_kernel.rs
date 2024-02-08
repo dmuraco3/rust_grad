@@ -6,11 +6,7 @@ use crate::{
     devices::metal::MetalGPU,
     dtypes::FloatUnit,
     shape::{Rank0, Shape},
-    tensor::{
-        tape,
-        tensor_ops::cross_entropy::CrossEntropyKernel,
-        Tensor,
-    },
+    tensor::{tape, tensor_ops::cross_entropy::CrossEntropyKernel, Tensor},
 };
 
 const CROSS_ENTROPY_LIB_DATA: &[u8] = include_bytes!("cross_entropy.metallib");
@@ -118,7 +114,7 @@ impl<E: FloatUnit> CrossEntropyKernel<E> for MetalGPU {
             let start = Instant::now();
             command_buffer.wait_until_completed();
             let elapsed = start.elapsed();
-            
+
             #[cfg(debug_assertions)]
             println!("time to do cross_entropy on GPU: {:?}", elapsed);
         });

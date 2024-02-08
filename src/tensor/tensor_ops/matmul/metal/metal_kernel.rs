@@ -1,18 +1,29 @@
 use std::time::Instant;
 
-use metal::{objc::rc::autoreleasepool, mps::{matrix::{encode_gemm_mbuffers, MatrixBuffer}, Float32}};
+use metal::{
+    mps::{
+        matrix::{encode_gemm_mbuffers, MatrixBuffer},
+        Float32,
+    },
+    objc::rc::autoreleasepool,
+};
 
-use crate::{dtypes::Unit, shape::{Dim, Shape}, devices::metal::MetalGPU, tensor::{Tensor, tape::Gradients, ZerosTensor, tensor_ops::matmul::MatVecKernel}};
+use crate::{
+    devices::metal::MetalGPU,
+    dtypes::Unit,
+    shape::{Dim, Shape},
+    tensor::{tape::Gradients, tensor_ops::matmul::MatVecKernel, Tensor, ZerosTensor},
+};
 
 use super::super::MatMatKernel;
 
 const LIB_DATA: &[u8] = include_bytes!("matmul.metallib");
 
-impl <E: Unit> MatVecKernel<E> for MetalGPU {
+impl<E: Unit> MatVecKernel<E> for MetalGPU {
     fn forward<I: Dim, J: Dim>(
         &self,
         lhs: &Tensor<(I, J), E, Self>,
-        rhs: &Tensor<(J, ), E, Self>,
+        rhs: &Tensor<(J,), E, Self>,
     ) -> Result<Tensor<(I,), E, Self>, Self::Err> {
         let (i, j) = lhs.shape;
 
@@ -24,16 +35,31 @@ impl <E: Unit> MatVecKernel<E> for MetalGPU {
         let res_data = result.data.write().unwrap();
         let res_buffer = &res_data.buf;
 
-        let lhs_mps_matrix: MatrixBuffer<Float32> = MatrixBuffer::from_buffer(lhs_buffer.to_owned(), i.size() as u64, j.size() as u64);
-        let rhs_mps_matrix: MatrixBuffer<Float32> = MatrixBuffer::from_buffer(rhs_buffer.to_owned(), j.size() as u64, 1);
-        let mut res_mps_matrix: MatrixBuffer<Float32> = MatrixBuffer::from_buffer(res_buffer.to_owned(), i.size() as u64, 1);
+        let lhs_mps_matrix: MatrixBuffer<Float32> =
+            MatrixBuffer::from_buffer(lhs_buffer.to_owned(), i.size() as u64, j.size() as u64);
+        let rhs_mps_matrix: MatrixBuffer<Float32> =
+            MatrixBuffer::from_buffer(rhs_buffer.to_owned(), j.size() as u64, 1);
+        let mut res_mps_matrix: MatrixBuffer<Float32> =
+            MatrixBuffer::from_buffer(res_buffer.to_owned(), i.size() as u64, 1);
 
         autoreleasepool(|| {
             let queue = self.device.new_command_queue();
-    
+
             let command_buffer = queue.new_command_buffer();
 
-            encode_gemm_mbuffers(&self.device, command_buffer, false, false, &lhs_mps_matrix, &rhs_mps_matrix, &mut res_mps_matrix, 1.0, 0.0, None).unwrap();
+            encode_gemm_mbuffers(
+                &self.device,
+                command_buffer,
+                false,
+                false,
+                &lhs_mps_matrix,
+                &rhs_mps_matrix,
+                &mut res_mps_matrix,
+                1.0,
+                0.0,
+                None,
+            )
+            .unwrap();
 
             let start = Instant::now();
             command_buffer.commit();
@@ -51,11 +77,10 @@ impl <E: Unit> MatVecKernel<E> for MetalGPU {
     fn backward<I: Dim, J: Dim>(
         &self,
         lhs: &Tensor<(I, J), E, Self>,
-        rhs: &Tensor<(J, ), E, Self>,
+        rhs: &Tensor<(J,), E, Self>,
         grads: &mut Gradients<E, Self>,
         out: &Tensor<(I,), E, Self>,
     ) -> Result<(), Self::Err> {
-
         let (i, j) = lhs.shape.clone();
 
         grads.try_alloc_for((&lhs.device, lhs.id.clone(), lhs.shape.num_elements()))?;
@@ -80,19 +105,23 @@ impl <E: Unit> MatVecKernel<E> for MetalGPU {
             &out_grad_buf,
         ];
 
-        
-        self.call_kernel(LIB_DATA, "matvec_backward", buffers, (i.size(), j.size(), 1))?;
+        self.call_kernel(
+            LIB_DATA,
+            "matvec_backward",
+            buffers,
+            (i.size(), j.size(), 1),
+        )?;
 
         Ok(())
     }
 }
 
-impl <E: Unit> MatMatKernel<E> for MetalGPU {
+impl<E: Unit> MatMatKernel<E> for MetalGPU {
     fn forward<I: Dim, J: Dim, K: Dim>(
-        &self, 
-        lhs: &Tensor<(I,J), E, Self>,
-        rhs: &Tensor<(J,K), E, Self>,
-    ) -> Result<Tensor<(I,K), E, Self>, Self::Err> {
+        &self,
+        lhs: &Tensor<(I, J), E, Self>,
+        rhs: &Tensor<(J, K), E, Self>,
+    ) -> Result<Tensor<(I, K), E, Self>, Self::Err> {
         let (i, j) = lhs.shape;
         let k = rhs.shape.1;
 
@@ -101,19 +130,33 @@ impl <E: Unit> MatMatKernel<E> for MetalGPU {
         let lhs_buffer = &lhs.data.read().unwrap().buf;
         let rhs_buffer = &rhs.data.read().unwrap().buf;
         let binding = result.data.write().unwrap();
-        let res_buffer= &binding.buf;
+        let res_buffer = &binding.buf;
 
-        let lhs_mps_matrix: MatrixBuffer<Float32> = MatrixBuffer::from_buffer(lhs_buffer.to_owned(), i.size() as u64, j.size() as u64);
-        let rhs_mps_matrix: MatrixBuffer<Float32> = MatrixBuffer::from_buffer(rhs_buffer.to_owned(), j.size() as u64, k.size() as u64);
-        let mut res_mps_matrix: MatrixBuffer<Float32> = MatrixBuffer::from_buffer(res_buffer.to_owned(), i.size() as u64, k.size() as u64);
-
+        let lhs_mps_matrix: MatrixBuffer<Float32> =
+            MatrixBuffer::from_buffer(lhs_buffer.to_owned(), i.size() as u64, j.size() as u64);
+        let rhs_mps_matrix: MatrixBuffer<Float32> =
+            MatrixBuffer::from_buffer(rhs_buffer.to_owned(), j.size() as u64, k.size() as u64);
+        let mut res_mps_matrix: MatrixBuffer<Float32> =
+            MatrixBuffer::from_buffer(res_buffer.to_owned(), i.size() as u64, k.size() as u64);
 
         autoreleasepool(|| {
             let queue = self.device.new_command_queue();
-    
+
             let command_buffer = queue.new_command_buffer();
 
-            encode_gemm_mbuffers(&self.device, command_buffer, false, false, &lhs_mps_matrix, &rhs_mps_matrix, &mut res_mps_matrix, 1.0, 0.0, None).unwrap();
+            encode_gemm_mbuffers(
+                &self.device,
+                command_buffer,
+                false,
+                false,
+                &lhs_mps_matrix,
+                &rhs_mps_matrix,
+                &mut res_mps_matrix,
+                1.0,
+                0.0,
+                None,
+            )
+            .unwrap();
 
             let start = Instant::now();
             command_buffer.commit();
@@ -123,17 +166,17 @@ impl <E: Unit> MatMatKernel<E> for MetalGPU {
         });
 
         drop(binding);
-        
-        return Ok(result)
+
+        return Ok(result);
     }
 
     #[allow(unused_variables)]
-    fn backward<I: Dim, J: Dim, K:Dim>(
+    fn backward<I: Dim, J: Dim, K: Dim>(
         &self,
-        lhs: &Tensor<(I,J), E, Self>,
-        rhs: &Tensor<(J,K), E, Self>,
+        lhs: &Tensor<(I, J), E, Self>,
+        rhs: &Tensor<(J, K), E, Self>,
         grads: &mut Gradients<E, Self>,
-        out: &Tensor<(I, K), E, Self>
+        out: &Tensor<(I, K), E, Self>,
     ) -> Result<(), Self::Err> {
         todo!()
     }

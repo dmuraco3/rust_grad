@@ -4,7 +4,6 @@
 
 // use super::{Conv2DKernel, KnownConv2DShape, Conv2DOp};
 
-
 // impl<E: Unit, T: Tape<E, Self>> Conv2DKernel<E> for CPU
 // where
 //     Self: ZerosTensor<E, T>
@@ -32,7 +31,7 @@
 //                 for filter_y in 0..filter_shape.0 {
 //                     for filter_x in 0..filter_shape.1 {
 //                         let l: &E = inp_inner.index((in_shape.1 * (filter_y + out_y)) + (out_x + filter_x));
-//                         // in_patch_index = out_shape.X * (out_ind_y + filter_y) + (out_x + filter_x) 
+//                         // in_patch_index = out_shape.X * (out_ind_y + filter_y) + (out_x + filter_x)
 //                         *out_inner.index_mut(out_shape.1 * out_y + out_x) += *l * *filter_inner.index(filter_shape.1*filter_y + filter_x);
 
 //                     };

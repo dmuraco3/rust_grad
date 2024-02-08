@@ -4,8 +4,8 @@ use crate::{
     shape::{self, Rank0, Shape},
     tensor::{
         tape::{Gradients, UniqueID},
+        tensor_ops::cross_entropy::CrossEntropyKernel,
         Tensor,
-        tensor_ops::cross_entropy::CrossEntropyKernel
     },
 };
 

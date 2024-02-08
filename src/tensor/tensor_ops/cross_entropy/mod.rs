@@ -3,17 +3,23 @@ pub mod metal;
 
 use std::fmt::Debug;
 
-use crate::{shape::{Rank0, Shape, ConstDim}, dtypes::Unit, tensor::{Tensor, tape::{Gradients, UniqueID, Tape, Merge, SplitTape, PutTape}, ZerosTensor}};
 use crate::storage::Storage;
+use crate::{
+    dtypes::Unit,
+    shape::{ConstDim, Rank0, Shape},
+    tensor::{
+        tape::{Gradients, Merge, PutTape, SplitTape, Tape, UniqueID},
+        Tensor, ZerosTensor,
+    },
+};
 
-use super::softmax::{TrySoftmax, SoftmaxKernel};
+use super::softmax::{SoftmaxKernel, TrySoftmax};
 
 pub trait CrossEntropyKernel<E: Unit>: Storage<E> {
-    
-    /// # Arguments 
-    /// 
+    /// # Arguments
+    ///
     /// * `src`    - Tensor returned from softmax (saves operations)
-    /// * `labels` - One-hot encoded vector 
+    /// * `labels` - One-hot encoded vector
     fn forward<S: Shape>(
         &self,
         src: &Tensor<S, E, Self>,
@@ -27,7 +33,7 @@ pub trait CrossEntropyKernel<E: Unit>: Storage<E> {
         labels: &Tensor<S, E, Self>,
         src_id: UniqueID,
         out_id: UniqueID,
-        grads: &mut Gradients<E, Self>
+        grads: &mut Gradients<E, Self>,
     ) -> Result<(), Self::Err>;
 }
 
@@ -38,20 +44,20 @@ pub trait TryCrossEntropy<S: Shape, E: Unit, D: CrossEntropyKernel<E>, RTape: Ta
     fn try_cross_entropy(self, labels: Tensor<S, E, D, RTape>) -> Result<Self::Output, Self::Err>;
 }
 
-impl <X, E, D, T, R> TryCrossEntropy<(X, ), E, D, R> for Tensor<(X, ), E, D, T>
+impl<X, E, D, T, R> TryCrossEntropy<(X,), E, D, R> for Tensor<(X,), E, D, T>
 where
     X: ConstDim,
     E: Unit,
     D: CrossEntropyKernel<E> + ZerosTensor<E> + SoftmaxKernel<E>,
     T: Tape<E, D> + Merge<R>,
     R: Tape<E, D>,
-    Self: TrySoftmax<E>
+    Self: TrySoftmax<E>,
 {
     type Err = D::Err;
 
     type Output = Tensor<Rank0, E, D, T>;
 
-    fn try_cross_entropy(self, labels: Tensor<(X, ), E, D, R>) -> Result<Self::Output, Self::Err> {
+    fn try_cross_entropy(self, labels: Tensor<(X,), E, D, R>) -> Result<Self::Output, Self::Err> {
         let mut out = self.device.zeros();
 
         let (src, src_tape) = self.split_tape();
@@ -59,12 +65,11 @@ where
 
         let mut tape = src_tape.merge(labels_tape);
 
-
         //
         // NOTE NOTE NOTE NOTE
         // UNCOMMENT THIS CODE IF TESTING FOR ANY DEVICE THAT ISNT THE METAL GPU
         // I'M GOING TO MERGE THE TWO KERNELS INTO ONE KERNEL FOR SOFTMAX CROSS ENTROPY ON METAL GPU
-        
+
         let src_softmax = if std::any::type_name::<D>() == "rust_grad::devices::cpu::CPU" {
             src.clone().try_softmax().unwrap()
         } else {
@@ -80,7 +85,14 @@ where
             grads.try_alloc_for((&src.device, src.id, src.shape.num_elements()))?;
             grads.try_alloc_for((&labels.device, labels.id, labels.shape.num_elements()))?;
 
-            CrossEntropyKernel::backward(&src.device, &src_softmax, &labels, src.id.clone(), out_id, grads)?;
+            CrossEntropyKernel::backward(
+                &src.device,
+                &src_softmax,
+                &labels,
+                src.id.clone(),
+                out_id,
+                grads,
+            )?;
 
             Ok(())
         });
@@ -91,7 +103,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{devices::cpu::CPU, tensor::{Tensor, Watch}, shape::Rank1};
+    use crate::{
+        devices::cpu::CPU,
+        shape::Rank1,
+        tensor::{Tensor, Watch},
+    };
 
     use super::TryCrossEntropy;
 
@@ -99,11 +115,12 @@ mod tests {
     fn test_cross_entropy_forward() {
         let dev = CPU::default();
 
-        let src: Tensor<Rank1<5>, f32, _> = dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
+        let src: Tensor<Rank1<5>, f32, _> =
+            dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
         let labels: Tensor<Rank1<5>, f32, _> = dev.from_array([1.0, 0.0, 0.0, 0.0, 0.0]);
 
         let cross_entropy = src.try_cross_entropy(labels).unwrap();
-        
+
         assert_eq!(cross_entropy.data.read().unwrap()[0], 1.6054815);
     }
 
@@ -111,7 +128,8 @@ mod tests {
     fn test_cross_entropy_backward() {
         let dev = CPU::default();
 
-        let src: Tensor<Rank1<5>, f32, _> = dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
+        let src: Tensor<Rank1<5>, f32, _> =
+            dev.from_array([0.521809, 0.891292, 0.014712, 0.718290, 0.184821]);
         let labels: Tensor<Rank1<5>, f32, _> = dev.from_array([1.0, 0.0, 0.0, 0.0, 0.0]);
 
         let mut cross_entropy = src.watch_leaky().try_cross_entropy(labels).unwrap();
@@ -121,11 +139,9 @@ mod tests {
 
         let src_grad = cross_entropy.tape.gradients.get(&src).unwrap();
 
-        let actual_grad: Tensor<Rank1<5>, f32, CPU> = dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.14334951]);
+        let actual_grad: Tensor<Rank1<5>, f32, CPU> =
+            dev.from_array([-0.79920715, 0.29054448, 0.12092575, 0.2443874, 0.14334951]);
 
         assert!(src_grad.allclose(&actual_grad, None, None));
-
-        
-
     }
 }

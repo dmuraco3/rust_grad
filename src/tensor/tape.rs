@@ -1,8 +1,11 @@
-use std::{sync::{atomic::AtomicUsize, Arc, RwLock}, collections::{BTreeMap, btree_map::Entry::Vacant}};
+use std::{
+    collections::{btree_map::Entry::Vacant, BTreeMap},
+    sync::{atomic::AtomicUsize, Arc, RwLock},
+};
 
-use crate::{shape::Shape, dtypes::Unit, storage::Storage};
+use crate::{dtypes::Unit, shape::Shape, storage::Storage};
 
-use super::{Tensor, HasErr};
+use super::{HasErr, Tensor};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub struct UniqueID(pub usize);
@@ -10,7 +13,6 @@ pub fn unique_id() -> UniqueID {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     UniqueID(COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
-
 }
 
 #[derive(Clone)]
@@ -19,7 +21,7 @@ pub struct Gradients<E, D: Storage<E>> {
     // pub leaf_ids: Option<BTreeSet<UniqueID>>,
 }
 
-impl <E: Unit, D: Storage<E>> Gradients<E, D> {
+impl<E: Unit, D: Storage<E>> Gradients<E, D> {
     pub fn leaky() -> Self {
         Self {
             gradient_by_id: Default::default(),
@@ -35,7 +37,12 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
         Ok(())
     }
 
-    pub fn try_alloc_raw(&mut self, device: &D, tensor_id: &UniqueID, num_ele: usize) -> Result<(), D::Err> {
+    pub fn try_alloc_raw(
+        &mut self,
+        device: &D,
+        tensor_id: &UniqueID,
+        num_ele: usize,
+    ) -> Result<(), D::Err> {
         if let Vacant(entry) = self.gradient_by_id.entry(tensor_id.to_owned()) {
             entry.insert(device.try_alloc_len(num_ele)?);
         }
@@ -54,7 +61,7 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
         self.gradient_by_id.get(tensor_id).unwrap()
     }
 
-    pub fn get_grad_mut(&mut self, tensor_id:&UniqueID) -> &mut D::Vec {
+    pub fn get_grad_mut(&mut self, tensor_id: &UniqueID) -> &mut D::Vec {
         self.gradient_by_id.get_mut(tensor_id).unwrap()
     }
 
@@ -67,12 +74,10 @@ impl <E: Unit, D: Storage<E>> Gradients<E, D> {
                 data: Arc::new(RwLock::new(entry.to_owned())),
                 device: tensor.device.clone(),
                 tape: NoneTape,
-            })
+            }),
         }
     }
-
 }
-
 
 type BackwardOp<E, D, Err> = Box<dyn FnOnce(&mut Gradients<E, D>) -> Result<(), Err>>;
 
@@ -84,13 +89,13 @@ pub struct OwnedTape<E, D: Storage<E>> {
     pub gradients: Gradients<E, D>,
 }
 
-impl <E, D: Storage<E>> OwnedTape<E, D> {
+impl<E, D: Storage<E>> OwnedTape<E, D> {
     pub fn sort_ops_backprop(&mut self) {
         self.operations.sort_by(|a, b| b.0.cmp(&a.0));
     }
 }
 
-impl <E: Unit, D: Storage<E>> Default for OwnedTape<E, D> {
+impl<E: Unit, D: Storage<E>> Default for OwnedTape<E, D> {
     fn default() -> Self {
         Self {
             operations: Default::default(),
@@ -109,13 +114,13 @@ impl Merge<Self> for NoneTape {
     }
 }
 
-impl <E, D: Storage<E>> Merge<NoneTape> for OwnedTape<E, D> {
+impl<E, D: Storage<E>> Merge<NoneTape> for OwnedTape<E, D> {
     fn merge(self, _: NoneTape) -> Self {
         self
     }
 }
 
-impl <E, D: Storage<E>> Merge<OwnedTape<E, D>> for OwnedTape<E, D> {
+impl<E, D: Storage<E>> Merge<OwnedTape<E, D>> for OwnedTape<E, D> {
     fn merge(mut self, mut other: OwnedTape<E, D>) -> Self {
         self.gradients
             .gradient_by_id
@@ -134,32 +139,33 @@ impl <E, D: Storage<E>> Merge<OwnedTape<E, D>> for OwnedTape<E, D> {
 pub trait Tape<E, D: Storage<E>>: Default + Merge<Self> + Merge<NoneTape> {
     const OWNS_TAPE: bool;
     fn add_backward_op<F>(&mut self, operation: F)
-    where 
+    where
         F: 'static + FnOnce(&mut Gradients<E, D>) -> Result<(), D::Err>;
 }
 
-impl <E: Unit, D: Storage<E>> Tape<E,D> for OwnedTape<E, D> {
+impl<E: Unit, D: Storage<E>> Tape<E, D> for OwnedTape<E, D> {
     const OWNS_TAPE: bool = true;
 
     fn add_backward_op<F>(&mut self, operation: F)
-    where 
-        F: 'static + FnOnce(&mut Gradients<E, D>) -> Result<(), <D>::Err> {
+    where
+        F: 'static + FnOnce(&mut Gradients<E, D>) -> Result<(), <D>::Err>,
+    {
         self.operations.push((unique_id(), Box::new(operation)));
     }
 }
 
-impl <E, D: Storage<E>> Tape<E, D> for NoneTape {
+impl<E, D: Storage<E>> Tape<E, D> for NoneTape {
     const OWNS_TAPE: bool = false;
 
     fn add_backward_op<F>(&mut self, _operation: F)
-    where 
-        F: 'static + FnOnce(&mut Gradients<E, D>) -> Result<(), <D>::Err> {
-            #[cfg(debug_assertions)]
-            {
-                println!("Cannot Add Backward Op to NoneTape");
-            }
+    where
+        F: 'static + FnOnce(&mut Gradients<E, D>) -> Result<(), <D>::Err>,
+    {
+        #[cfg(debug_assertions)]
+        {
+            println!("Cannot Add Backward Op to NoneTape");
+        }
     }
-    
 }
 
 pub trait PutTape<T> {
@@ -167,7 +173,7 @@ pub trait PutTape<T> {
     fn put_tape(self, tape: T) -> Self::Output;
 }
 
-impl <S: Shape, E: Unit, D: Storage<E>, T> PutTape<T> for Tensor<S, E, D> {
+impl<S: Shape, E: Unit, D: Storage<E>, T> PutTape<T> for Tensor<S, E, D> {
     type Output = Tensor<S, E, D, T>;
 
     fn put_tape(self, tape: T) -> Self::Output {
@@ -179,7 +185,6 @@ impl <S: Shape, E: Unit, D: Storage<E>, T> PutTape<T> for Tensor<S, E, D> {
             tape,
         }
     }
-    
 }
 
 pub trait SplitTape {
@@ -187,11 +192,9 @@ pub trait SplitTape {
     type NoTape: PutTape<Self::Tape, Output = Self>;
 
     fn split_tape(self) -> (Self::NoTape, Self::Tape);
-
-    
 }
 
-impl <S: Shape, E: Unit, D: Storage<E>, T> SplitTape for Tensor<S, E, D, T> {
+impl<S: Shape, E: Unit, D: Storage<E>, T> SplitTape for Tensor<S, E, D, T> {
     type Tape = T;
     type NoTape = Tensor<S, E, D>;
 
@@ -204,8 +207,7 @@ impl <S: Shape, E: Unit, D: Storage<E>, T> SplitTape for Tensor<S, E, D, T> {
                 device: self.device,
                 tape: NoneTape,
             },
-            self.tape
+            self.tape,
         )
     }
-    
 }

@@ -1,45 +1,56 @@
-use std::{fmt::Display, sync::{Arc, RwLock}, ops::Range};
+use std::{
+    fmt::Display,
+    ops::Range,
+    sync::{Arc, RwLock},
+};
 
-use rand::{Rng, distributions::{Standard, uniform::SampleUniform, Uniform}, prelude::Distribution, rngs::StdRng, SeedableRng};
+use rand::{
+    distributions::{uniform::SampleUniform, Standard, Uniform},
+    prelude::Distribution,
+    rngs::StdRng,
+    Rng, SeedableRng,
+};
 
 use crate::{
-    shape::{Shape, HasShape, Rank2, Dim, Const, Rank1},
+    dtypes::Unit,
+    shape::{Const, Dim, HasShape, Rank1, Rank2, Shape},
     storage::Storage,
-    tensor::{ZerosTensor, Tensor, HasErr, RandTensor, tape::{unique_id, Tape, NoneTape}, Arange},
-    dtypes::Unit
+    tensor::{
+        tape::{unique_id, NoneTape, Tape},
+        Arange, HasErr, RandTensor, Tensor, ZerosTensor,
+    },
 };
 
 use super::metal::MetalGPU;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct CPU {}
 
 impl Default for CPU {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }
 
-impl <E: Unit> Storage<E> for CPU {
+impl<E: Unit> Storage<E> for CPU {
     type Vec = Vec<E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err> {
-        Ok(vec![E::ZERO;len])
+        Ok(vec![E::ZERO; len])
     }
 
     fn try_alloc_ones(&self, len: usize) -> Result<Self::Vec, Self::Err> {
-        Ok(vec![E::ONE;len])
+        Ok(vec![E::ONE; len])
     }
 
     fn num_el(&self, st: Self::Vec) -> usize {
         Vec::len(&st)
     }
-    
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum CpuError {
-    SmallProblem
+    SmallProblem,
 }
 
 impl Display for CpuError {
@@ -53,34 +64,34 @@ impl HasErr for CPU {
     const ERR: Self::Err = CpuError::SmallProblem;
 }
 
-impl <E: Unit> ZerosTensor<E> for CPU {
+impl<E: Unit> ZerosTensor<E> for CPU {
     fn try_zeros_from<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> {
         let shape = *src.shape();
-        let data = vec![E::ZERO;shape.num_elements()];
-        let data: Arc<RwLock<Vec<E>>>= Arc::new(RwLock::new(data));
+        let data = vec![E::ZERO; shape.num_elements()];
+        let data: Arc<RwLock<Vec<E>>> = Arc::new(RwLock::new(data));
         Ok(Tensor {
             shape,
             data,
             device: CPU::default(),
             id: unique_id(),
-            tape: NoneTape
+            tape: NoneTape,
         })
     }
 }
 
-impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
-    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err> 
+impl<E: Unit + SampleUniform> RandTensor<E> for CPU {
+    fn try_fill_rand<S: HasShape>(&self, src: &S) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
     where
-        Standard: Distribution<E>
+        Standard: Distribution<E>,
     {
         let shape = *src.shape();
-        let mut out_data = vec![E::ZERO;shape.num_elements()];
+        let mut out_data = vec![E::ZERO; shape.num_elements()];
 
         {
             let mut rng = rand::thread_rng();
             for el in out_data.iter_mut() {
                 let el_rand: E = rng.gen();
-                *el  = el_rand;
+                *el = el_rand;
             }
         }
         let out_data = Arc::new(RwLock::new(out_data));
@@ -89,15 +100,20 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
             data: out_data,
             device: Self::default(),
             id: unique_id(),
-            tape: NoneTape
+            tape: NoneTape,
         })
     }
 
-    fn try_fill_rand_range<S: HasShape>(&self, src: &S, range: Range<E>) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
-    where Standard: Distribution<E>
+    fn try_fill_rand_range<S: HasShape>(
+        &self,
+        src: &S,
+        range: Range<E>,
+    ) -> Result<Tensor<S::Shape, E, Self>, Self::Err>
+    where
+        Standard: Distribution<E>,
     {
         let shape = *src.shape();
-        let mut out_data = vec![E::ZERO;shape.num_elements()];
+        let mut out_data = vec![E::ZERO; shape.num_elements()];
 
         let id = unique_id();
 
@@ -108,7 +124,7 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
 
             for el in out_data.iter_mut() {
                 let el_rand: E = between.sample(&mut rng);
-                *el  = el_rand;
+                *el = el_rand;
             }
         }
 
@@ -118,17 +134,19 @@ impl <E: Unit + SampleUniform> RandTensor<E> for CPU {
             id,
             data: out_data,
             device: Self::default(),
-            tape: NoneTape
+            tape: NoneTape,
         })
     }
 }
 
-impl <E: Unit> Arange<E> for CPU {
-    fn try_arange<S: Dim>(&self, end: &S) -> Result<Tensor<(S, ), E, Self>, Self::Err> {
-        let seq = (0..end.size()).map(|e| E::from_usize(e)).collect::<Vec<E>>();
+impl<E: Unit> Arange<E> for CPU {
+    fn try_arange<S: Dim>(&self, end: &S) -> Result<Tensor<(S,), E, Self>, Self::Err> {
+        let seq = (0..end.size())
+            .map(|e| E::from_usize(e))
+            .collect::<Vec<E>>();
         Ok(Tensor {
             id: unique_id(),
-            shape: (end.clone(), ),
+            shape: (end.clone(),),
             data: Arc::new(RwLock::new(seq)),
             device: Self::default(),
             tape: NoneTape,
@@ -136,36 +154,52 @@ impl <E: Unit> Arange<E> for CPU {
     }
 }
 
-impl <Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, CPU> {
+impl<Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, CPU> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read().unwrap().clone();
-        write!(f,"[")?;
+        write!(f, "[")?;
         for i_y in 0..self.shape.0.size() {
-            write!(f, "{}[", " ".repeat((i_y !=0) as usize))?;
+            write!(f, "{}[", " ".repeat((i_y != 0) as usize))?;
 
             for i_x in 0..self.shape.1.size() {
                 Display::fmt(&data[self.shape.1.size() * (i_y) + i_x], f)?;
-                write!(f,"{}", ", ".repeat((i_x != self.shape.1.size()-1) as usize))?;   
+                write!(
+                    f,
+                    "{}",
+                    ", ".repeat((i_x != self.shape.1.size() - 1) as usize)
+                )?;
             }
-            write!(f,"]{}\n", [",","]"][(i_y == self.shape.0.size()-1) as usize])?;
+            write!(
+                f,
+                "]{}\n",
+                [",", "]"][(i_y == self.shape.0.size() - 1) as usize]
+            )?;
         }
 
         Ok(())
     }
 }
 
-impl <Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, MetalGPU> {
+impl<Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, MetalGPU> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let data = self.data.read().unwrap().clone();
-        write!(f,"[")?;
+        write!(f, "[")?;
         for i_y in 0..self.shape.0.size() {
-            write!(f, "{}[", " ".repeat((i_y !=0) as usize))?;
+            write!(f, "{}[", " ".repeat((i_y != 0) as usize))?;
 
             for i_x in 0..self.shape.1.size() {
                 Display::fmt(&data[self.shape.1.size() * (i_y) + i_x], f)?;
-                write!(f,"{}", ", ".repeat((i_x != self.shape.1.size()-1) as usize))?;   
+                write!(
+                    f,
+                    "{}",
+                    ", ".repeat((i_x != self.shape.1.size() - 1) as usize)
+                )?;
             }
-            write!(f,"]{}\n", [",","]"][(i_y == self.shape.0.size()-1) as usize])?;
+            write!(
+                f,
+                "]{}\n",
+                [",", "]"][(i_y == self.shape.0.size() - 1) as usize]
+            )?;
         }
 
         Ok(())
@@ -187,7 +221,6 @@ impl <Y: Dim, X: Dim, E: Unit> Display for Tensor<(Y, X), E, MetalGPU> {
 //             write!(f, "{:?}]", data.next().unwrap())?;
 //         }
 
-
 //         Ok(())
 //     }
 // }
@@ -201,33 +234,30 @@ impl<X: Dim, E: Unit, D: Storage<E>, T: Tape<E, MetalGPU>> Display for Tensor<(X
             writeln!(f, "[{:?}]", data.next().unwrap())?;
         } else {
             write!(f, "[{:?},", data.next().unwrap())?;
-            for _ in 0..self.shape.0.size()-2 {
+            for _ in 0..self.shape.0.size() - 2 {
                 write!(f, "{:?},", data.next().unwrap())?;
             }
             write!(f, "{:?}]", data.next().unwrap())?;
         }
 
-
         Ok(())
     }
 }
 
-
-
-
-impl <E: Unit> Display for Tensor<(), E, CPU> {
+impl<E: Unit> Display for Tensor<(), E, CPU> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.data.read().unwrap()[0])?;
         Ok(())
     }
 }
 
-
 #[allow(dead_code)]
 impl CPU {
-    pub fn try_from_2d_array<const I: usize, const J: usize, E: Unit>(&self, src: [[E;I];J]) -> Result<Tensor<Rank2<I, J>, E, Self>, CpuError> {
-
-        let mut out_data = vec![E::ZERO;I*J];
+    pub fn try_from_2d_array<const I: usize, const J: usize, E: Unit>(
+        &self,
+        src: [[E; I]; J],
+    ) -> Result<Tensor<Rank2<I, J>, E, Self>, CpuError> {
+        let mut out_data = vec![E::ZERO; I * J];
 
         for i in 0..I {
             for j in 0..J {
@@ -245,15 +275,18 @@ impl CPU {
         })
     }
 
-    pub fn try_from_array<const I: usize, E: Unit>(&self, src: [E;I]) -> Result<Tensor<Rank1<I>, E, Self>, CpuError> {
-        let mut out_data = vec![E::ZERO;I];
+    pub fn try_from_array<const I: usize, E: Unit>(
+        &self,
+        src: [E; I],
+    ) -> Result<Tensor<Rank1<I>, E, Self>, CpuError> {
+        let mut out_data = vec![E::ZERO; I];
 
         for i_i in 0..I {
             out_data[i_i] = src[i_i];
         }
 
         let out_data = Arc::new(RwLock::new(out_data));
-        
+
         Ok(Tensor {
             id: unique_id(),
             shape: (Const::<I>,),
@@ -263,13 +296,14 @@ impl CPU {
         })
     }
 
-    pub fn from_2d_array<const I: usize, const J: usize, E: Unit>(&self, src: [[E;I];J]) -> Tensor<Rank2<I, J>, E, Self> {
+    pub fn from_2d_array<const I: usize, const J: usize, E: Unit>(
+        &self,
+        src: [[E; I]; J],
+    ) -> Tensor<Rank2<I, J>, E, Self> {
         Self::try_from_2d_array(&self, src).unwrap()
     }
 
-
-    pub fn from_array<const I: usize, E: Unit>(&self, src: [E;I]) -> Tensor<Rank1<I>, E, Self> {
+    pub fn from_array<const I: usize, E: Unit>(&self, src: [E; I]) -> Tensor<Rank1<I>, E, Self> {
         Self::try_from_array(&self, src).unwrap()
     }
-
 }

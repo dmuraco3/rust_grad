@@ -19,8 +19,6 @@ pub struct MetalState {
     pub pipeline: metal::ComputePipelineState,
 }
 
-
-
 impl<E: Unit> AddKernel<E> for MetalGPU {
     fn forward<S: Shape>(
         &self,
@@ -28,7 +26,6 @@ impl<E: Unit> AddKernel<E> for MetalGPU {
         rhs: &Tensor<S, E, Self>,
         out: &mut Tensor<S, E, Self>,
     ) -> Result<(), Self::Err> {
-
         let shape = lhs.shape.clone();
 
         let mut shape_iter = shape.concrete().into_iter();
@@ -65,12 +62,13 @@ impl<E: Unit> AddKernel<E> for MetalGPU {
 
         let right_grad_buf = &right_grad.buf.clone();
 
-        let buffers = &[
-            out_grad_buf,
-            left_grad_buf,
-            right_grad_buf,
-        ];
+        let buffers = &[out_grad_buf, left_grad_buf, right_grad_buf];
 
-        self.call_kernel(LIB_DATA, SHADER_BACKWARD_NAME, buffers, (out_grad.len, 1, 1))
+        self.call_kernel(
+            LIB_DATA,
+            SHADER_BACKWARD_NAME,
+            buffers,
+            (out_grad.len, 1, 1),
+        )
     }
 }

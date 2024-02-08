@@ -50,11 +50,11 @@ pub struct Conv2DOp {
 //     ) -> Result<Self::Output, Self::Error>;
 
 //     /// Can't get [Const] output shape of conv2d without generic_const_expr which requires nightly
-//     /// 
+//     ///
 //     /// User can calculate the output shape of conv2d with the following formula
-//     /// 
+//     ///
 //     /// output_dim = (input_dim - kernel_dim + 2 * padding) / stride + 1
-//     /// 
+//     ///
 //     fn try_conv2d_known<const X: usize, const Y: usize>(
 //         self,
 //         weights: &Tensor<(KernelX, KernelY), E, D>,
@@ -67,7 +67,7 @@ pub struct Conv2DOp {
 // }
 
 // impl <InpX, InpY, KernelX, KernelY, Stride, Padding, Dilation, Groups, E, D, T>
-// TryConv2D<KernelX, KernelY, Stride, Padding, Dilation, Groups, E, D> 
+// TryConv2D<KernelX, KernelY, Stride, Padding, Dilation, Groups, E, D>
 // for Tensor<(InpX, InpY), E, D, T>
 // where
 //     InpX: ConstDim,
@@ -76,7 +76,7 @@ pub struct Conv2DOp {
 //     KernelY: ConstDim,
 //     Stride: Dim,
 //     Padding: Dim,
-//     Dilation: Dim, 
+//     Dilation: Dim,
 //     Groups: Dim,
 //     E: Unit,
 //     D: Conv2DKernel<E> + ZerosTensor<E, T>,
@@ -87,8 +87,6 @@ pub struct Conv2DOp {
 //         E,
 //         D
 //     >;
-
-
 
 //     type Error = D::Err;
 
@@ -114,7 +112,7 @@ pub struct Conv2DOp {
 //         padding: Padding,
 //         dilation: Dilation,
 //         groups: Groups,
-//     ) -> Result<Tensor<(Const<X>, Const<Y>), E, D>, Self::Error> 
+//     ) -> Result<Tensor<(Const<X>, Const<Y>), E, D>, Self::Error>
 //     {
 //         let mut out: Tensor<(Const<X>, Const<Y>), E, D> = self.device.zeros();
 
@@ -137,9 +135,7 @@ pub struct Conv2DOp {
 //         return Ok(out);
 //     }
 
-    
 // }
-
 
 // pub trait OutShapeConv2D<
 // KernelX,
@@ -179,7 +175,7 @@ pub struct Conv2DOp {
 //     DILATION,
 //     INPX,
 //     INPY
-// >  for (Const<INPX>, Const<INPY>, Const<KERNELX>, Const<KERNELY>) 
+// >  for (Const<INPX>, Const<INPY>, Const<KERNELX>, Const<KERNELY>)
 // where
 //     Const<{(INPX + 2 * PADDING - DILATION * (KERNELX - 1) - 1) / STRIDE + 1}>: Sized,
 // {
@@ -219,7 +215,6 @@ pub struct Conv2DOp {
 //         (x, y)
 //     }
 
-    
 // }
 // pub trait KnownConv2DShape: Shape + ConstShape {
 // }

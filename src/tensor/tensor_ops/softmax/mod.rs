@@ -8,7 +8,7 @@ use crate::{
     shape::{Dim, Shape},
     storage::Storage,
     tensor::{
-        tape::{PutTape, SplitTape, Tape, UniqueID, Gradients},
+        tape::{Gradients, PutTape, SplitTape, Tape, UniqueID},
         HasErr, Tensor, ZerosTensor,
     },
 };
@@ -23,7 +23,7 @@ pub trait SoftmaxKernel<E: Unit>: Storage<E> {
     fn backward<S: Shape>(
         &self,
         out_id: &UniqueID,
-        grads: &mut Gradients<E, Self>
+        grads: &mut Gradients<E, Self>,
     ) -> Result<(), Self::Err>;
 }
 

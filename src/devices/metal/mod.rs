@@ -5,10 +5,14 @@ use std::{
     marker::PhantomData,
     mem::size_of,
     ops::{Index, IndexMut, Range},
-    sync::{Arc, RwLock}, time::Instant,
+    sync::{Arc, RwLock},
+    time::Instant,
 };
 
-use metal::{objc::rc::autoreleasepool, Buffer, Device, MTLResourceOptions, CommandQueue, ComputePipelineState};
+use metal::{
+    objc::rc::autoreleasepool, Buffer, CommandQueue, ComputePipelineState, Device,
+    MTLResourceOptions,
+};
 use rand::{
     distributions::{uniform::SampleUniform, Standard, Uniform},
     prelude::Distribution,
@@ -54,7 +58,10 @@ impl MetalGPU {
         tensor
     }
 
-    pub fn from_2d_array<const Y: usize, const X: usize, E: Unit>(&self, src: [[E; X]; Y]) -> Tensor<Rank2<X, Y>, E, Self> {
+    pub fn from_2d_array<const Y: usize, const X: usize, E: Unit>(
+        &self,
+        src: [[E; X]; Y],
+    ) -> Tensor<Rank2<X, Y>, E, Self> {
         let mut tensor: Tensor<Rank2<X, Y>, E, MetalGPU> = self.zeros();
 
         let mut tensor_inner = tensor.borrow_mut().data.write().unwrap();
@@ -70,8 +77,16 @@ impl MetalGPU {
         tensor
     }
 
-    pub fn from_vec_with_shape<S: Shape, E: Unit>(&self, src: Vec<E>, shape: S) -> Tensor<S, E, Self> {
-        assert_eq!(shape.num_elements(), src.len(), "src vec does not have same number of elements as desired shape");
+    pub fn from_vec_with_shape<S: Shape, E: Unit>(
+        &self,
+        src: Vec<E>,
+        shape: S,
+    ) -> Tensor<S, E, Self> {
+        assert_eq!(
+            shape.num_elements(),
+            src.len(),
+            "src vec does not have same number of elements as desired shape"
+        );
         let mut tensor = self.try_zeros_from(&shape).unwrap();
         let mut tensor_inner = tensor.borrow_mut().data.write().unwrap();
 
@@ -185,7 +200,6 @@ impl<E> Iterator for MetalVecIntoIter<E> {
     }
 }
 
-
 impl<E: Unit> Display for MetalVec<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[ ")?;
@@ -197,13 +211,14 @@ impl<E: Unit> Display for MetalVec<E> {
     }
 }
 
-
-
 impl<E: Unit> Storage<E> for MetalGPU {
     type Vec = MetalVec<E>;
 
     fn try_alloc_len(&self, len: usize) -> Result<Self::Vec, Self::Err> {
-        let buf = self.device.new_buffer((len * size_of::<E>()) as u64, MTLResourceOptions::StorageModeShared);
+        let buf = self.device.new_buffer(
+            (len * size_of::<E>()) as u64,
+            MTLResourceOptions::StorageModeShared,
+        );
 
         let buf = MetalVec {
             buf,
@@ -332,7 +347,6 @@ impl<E: Unit + SampleUniform> RandTensor<E> for MetalGPU {
     }
 }
 
-
 pub struct MetalState {
     pub queue: CommandQueue,
     pub pipeline: ComputePipelineState,
@@ -343,7 +357,7 @@ impl MetalState {
         let queue = device.new_command_queue();
         let lib = device.new_library_with_data(library_data).unwrap();
         let function = lib.get_function(shader_name, None).unwrap();
-        
+
         let pipeline = device
             .new_compute_pipeline_state_with_function(&function)
             .unwrap();
@@ -362,7 +376,6 @@ impl MetalGPU {
     ) -> Result<(), <MetalGPU as HasErr>::Err> {
         let device = &self.device;
 
-
         autoreleasepool(|| {
             let state = MetalState::new_with_shader(device, library_data, shader_name);
 
@@ -380,7 +393,7 @@ impl MetalGPU {
             } else {
                 state.pipeline.max_total_threads_per_threadgroup() / w
             };
-            
+
             let grid_size = metal::MTLSize::new(shape.0 as u64, shape.1 as u64, shape.2 as u64);
             let threadgroup_size = metal::MTLSize::new(w, h, 1);
 
@@ -397,9 +410,11 @@ impl MetalGPU {
             #[cfg(debug_assertions)]
             {
                 let elapsed = start.elapsed();
-                println!("time to execute {} on Metal GPU: {:?}", shader_name, elapsed);
+                println!(
+                    "time to execute {} on Metal GPU: {:?}",
+                    shader_name, elapsed
+                );
             }
-
         });
 
         Ok(())

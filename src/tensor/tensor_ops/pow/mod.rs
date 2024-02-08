@@ -3,12 +3,31 @@ pub mod metal_kernel;
 
 use std::fmt::{Debug, Display};
 
-use crate::{dtypes::Unit, storage::Storage, shape::Shape, tensor::{Tensor, ZerosTensor, tape::{Tape, SplitTape, PutTape}}};
+use crate::{
+    dtypes::Unit,
+    shape::Shape,
+    storage::Storage,
+    tensor::{
+        tape::{PutTape, SplitTape, Tape},
+        Tensor, ZerosTensor,
+    },
+};
 
 pub trait PowKernel<E: Unit>: Storage<E> {
-    fn forward<S: Shape>(&self, src: &Tensor<S, E, Self>, out:&mut Tensor<S,E,Self>, exponent: u32) -> Result<(), Self::Err>;
+    fn forward<S: Shape>(
+        &self,
+        src: &Tensor<S, E, Self>,
+        out: &mut Tensor<S, E, Self>,
+        exponent: u32,
+    ) -> Result<(), Self::Err>;
 
-    fn backward<S: Shape>(&self, src: &Tensor<S, E, Self>, src_grad: &mut Self::Vec, out_grad: &Self::Vec, exponent: u32) -> Result<(), Self::Err>;
+    fn backward<S: Shape>(
+        &self,
+        src: &Tensor<S, E, Self>,
+        src_grad: &mut Self::Vec,
+        out_grad: &Self::Vec,
+        exponent: u32,
+    ) -> Result<(), Self::Err>;
 }
 
 pub trait TryPow<S: Shape, E: Unit, D: PowKernel<E>, T> {
@@ -17,13 +36,13 @@ pub trait TryPow<S: Shape, E: Unit, D: PowKernel<E>, T> {
     fn try_pow(self, exponent: u32) -> Result<Tensor<S, E, D, T>, Self::Error>;
 }
 
-impl <S, E, D, T> TryPow<S,E,D, T> for Tensor<S, E, D, T>
+impl<S, E, D, T> TryPow<S, E, D, T> for Tensor<S, E, D, T>
 where
     S: Shape + 'static,
     E: Unit,
     D: PowKernel<E> + ZerosTensor<E>,
     T: Tape<E, D>,
-    Tensor<S, E, D>: Display
+    Tensor<S, E, D>: Display,
 {
     type Error = D::Err;
 
@@ -44,14 +63,13 @@ where
             let out_grad = grads.get_grad_ref(&out_d.0).clone();
 
             let mut src_grad = grads.get_grad_mut(&lhs.id);
-            
 
-            lhs.device.backward(&lhs, &mut src_grad, &out_grad, exponent)?;
+            lhs.device
+                .backward(&lhs, &mut src_grad, &out_grad, exponent)?;
 
             Ok(())
         });
 
         Ok(out.put_tape(lhs_tape))
-
     }
 }
